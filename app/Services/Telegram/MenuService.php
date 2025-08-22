@@ -53,7 +53,8 @@ class MenuService
 
     public function hideReplyKeyboard(int|string $chatId): void
     {
-        $remove = $this->telegram->buildKeyBoardHide(true);
+        // Use non-selective removal so the main reply keyboard is fully hidden
+        $remove = $this->telegram->buildKeyBoardHide(false);
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => ' ',

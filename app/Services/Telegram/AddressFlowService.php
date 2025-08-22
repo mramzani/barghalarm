@@ -10,10 +10,12 @@ class AddressFlowService
     public function __construct(
         public TelegramService $telegram,
         public StateStore $stateStore,
+        public MenuService $menu,
     ) {}
 
     public function showAddAddressFlow(int|string $chatId): void
     {
+        $this->menu->hideReplyKeyboard($chatId);
         $cities = City::orderBy('name_fa')->get(['id', 'name_fa']);
         $buttons = [];
         $row = [];
@@ -42,6 +44,7 @@ class AddressFlowService
 
     public function promptForKeyword(int|string $chatId, int $cityId): void
     {
+        $this->menu->hideReplyKeyboard($chatId);
         $city = City::find($cityId);
         if (! $city) {
             $this->showAddAddressFlow($chatId);

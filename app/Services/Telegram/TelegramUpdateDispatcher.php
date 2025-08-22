@@ -135,6 +135,20 @@ class TelegramUpdateDispatcher
         }
 
         if (array_key_exists('step', $state) && $state['step'] === 'await_keyword' && array_key_exists('city_id', $state)) {
+            // During keyword step, ignore main menu reply buttons and re-prompt
+            $mainMenuButtons = [
+                '🗂️ مدیریت آدرس‌ها',
+                '📍️ افزودن آدرس جدید',
+                '🔴 وضعیت قطعی‌ها',
+                '💡 درباره ما',
+                '📨 پیشنهاد یا گزارش مشکل',
+                '📜 قوانین و مقررات',
+            ];
+            if (in_array($text, $mainMenuButtons, true)) {
+                $this->addressFlow->promptForKeyword($chatId, (int) $state['city_id']);
+                return;
+            }
+
             $this->addressFlow->handleKeywordSearch($chatId, (int) $state['city_id'], $text);
             return;
         }
