@@ -122,5 +122,5 @@ use Hekmatinasser\Verta\Verta;
 
 Route::post('/telegram/bot', [TelegramController::class, 'handle']);
 Route::get('/info', [TelegramController::class, 'webhookInfo']);
-//Route::get('/set', [TelegramController::class, 'setWebhook']);
+Route::get('/set', [TelegramController::class, 'setWebhook']);
 
