@@ -64,7 +64,7 @@ class RemindUpcomingBlackoutsCommand extends Command
                 ->whereNotNull('chat_id')
                 ->whereHas('addresses', function ($q) use ($address) {
                     $q->where('addresses.id', $address->id)
-                        ->wherePivot('is_active', true);
+                        ->where('adress_user.is_active', 1);
                 })
                 ->get(['id', 'chat_id']);
 
