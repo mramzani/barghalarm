@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\Blackout\BlackoutImporter;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class ImportBlackoutsCommand extends Command
 {
@@ -22,7 +23,8 @@ class ImportBlackoutsCommand extends Command
         // Use zero-padded Jalali date like 1404/05/31 to match the site input format
         $today = \Hekmatinasser\Verta\Verta::now()->format('Y/m/d');
         $result = $importer->import($today, $today, []);
-        $this->info('Import finished. Created: ' . $result['created'] . ', Updated: ' . $result['updated'] . ', Skipped: ' . $result['skipped']);
+        //$this->info('Import finished. Created: ' . $result['created'] . ', Updated: ' . $result['updated'] . ', Skipped: ' . $result['skipped']);
+        Log::info('Import finished. Created: ' . $result['created'] . ', Updated: ' . $result['updated'] . ', Skipped: ' . $result['skipped']);
         return self::SUCCESS;
     }
 }

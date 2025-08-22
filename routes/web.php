@@ -26,47 +26,31 @@ use Hekmatinasser\Verta\Verta;
 */
 
 
-Route::get('/test', function (Request $request) {
-    $area = $request->input('area', '3');
-    $from = $request->input('from', '1404/05/30');
-    $to = $request->input('to', '1404/05/30');
+// Route::get('/save-address', function () {
+//     $cities = City::all();
+//     $scraper = new OutageScraper();
+//     foreach ($cities as $city) {
+//         foreach ($city->areas as $area) {
+//             $blackouts = $scraper->searchOutages('1404/05/31', '1404/05/31', $area->code);
+//             $blackouts = array_key_exists(1, $blackouts) ? $blackouts[1] : [];
+//             if (count($blackouts) > 1) {
+//                 foreach ($blackouts as $key => $blackout) {
+//                     $address = Address::where('address', $blackout[4])->first();
 
-    $headers = [];
-    $rows = [];
+//                     if ($address) continue;
 
-    try {
-        $scraper = new OutageScraper();
-        [$headers, $rows] = $scraper->searchOutages($from, $to, $area);
-        return view('welcome', compact('headers', 'rows', 'area', 'from', 'to'));
-    } catch (Throwable $e) {
-        dd($e);
-    }
-});
-Route::get('/save-address', function () {
-    $cities = City::all();
-    $scraper = new OutageScraper();
-    foreach ($cities as $city) {
-        foreach ($city->areas as $area) {
-            $blackouts = $scraper->searchOutages('1404/05/31', '1404/05/31', $area->code);
-            $blackouts = array_key_exists(1, $blackouts) ? $blackouts[1] : [];
-            if (count($blackouts) > 1) {
-                foreach ($blackouts as $key => $blackout) {
-                    $address = Address::where('address', $blackout[4])->first();
-
-                    if ($address) continue;
-
-                    $addressCode = (int) ($city->id . "00" . $key);
-                    $address = Address::create([
-                        'city_id' => $city->id,
-                        'address' => $blackout[4],
-                        'code' => $addressCode,
-                    ]);
-                }
-            }
-        }
-    }
-    return "done";
-});
+//                     $addressCode = (int) ($city->id . "00" . $key);
+//                     $address = Address::create([
+//                         'city_id' => $city->id,
+//                         'address' => $blackout[4],
+//                         'code' => $addressCode,
+//                     ]);
+//                 }
+//             }
+//         }
+//     }
+//     return "done";
+// });
 
 // Legacy route disabled in favor of scheduled command (blackouts:import)
 /* Route::get('/save-blackout', function () {
@@ -137,5 +121,6 @@ Route::get('/save-address', function () {
 
 
 Route::post('/telegram/bot', [TelegramController::class, 'handle']);
-Route::get('/set', [TelegramController::class, 'setWebhook']);
 Route::get('/info', [TelegramController::class, 'webhookInfo']);
+//Route::get('/set', [TelegramController::class, 'setWebhook']);
+

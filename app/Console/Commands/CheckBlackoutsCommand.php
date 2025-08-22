@@ -8,6 +8,7 @@ use App\Services\Telegram\TelegramService;
 use Hekmatinasser\Verta\Verta;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CheckBlackoutsCommand extends Command
 {
@@ -70,7 +71,8 @@ class CheckBlackoutsCommand extends Command
             }
         }
 
-        $this->info('Notifications sent for addresses: ' . $notified);
+        //$this->info('Notifications sent for addresses: ' . $notified);
+        Log::info('Notifications sent for addresses: ' . $notified);
         return self::SUCCESS;
     }
 }
