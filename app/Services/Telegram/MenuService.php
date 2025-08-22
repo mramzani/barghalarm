@@ -23,11 +23,9 @@ class MenuService
             ],
             [
                 $this->telegram->buildKeyboardButton('💡 درباره ما'),
-                $this->telegram->buildKeyboardButton('📜 قوانین و مقررات'),
-            ],
-            [
                 $this->telegram->buildKeyboardButton('📨 پیشنهاد یا گزارش مشکل'),
-            ],
+                // $this->telegram->buildKeyboardButton('📜 قوانین و مقررات'),
+            ]
         ];
         $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, false, true, true);
 

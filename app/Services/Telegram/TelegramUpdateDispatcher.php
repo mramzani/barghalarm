@@ -139,6 +139,53 @@ class TelegramUpdateDispatcher
             return;
         }
 
+        // Handle feedback flow
+        if (array_key_exists('step', $state) && $state['step'] === 'await_feedback') {
+            if ($text === 'انصراف') {
+                $this->state->clear($chatId);
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => '❌ ارسال پیشنهاد/گزارش لغو شد.',
+                ]);
+                $this->menu->hideReplyKeyboard($chatId);
+                $this->menu->sendMainMenu($chatId);
+                return;
+            }
+
+            $user = $this->userAddress->findUserByChatId($chatId);
+            $firstName = $user ? (string) ($user->first_name ?? '') : (string) ($this->telegram->FirstName() ?? '');
+            $lastName = $user ? (string) ($user->last_name ?? '') : (string) ($this->telegram->LastName() ?? '');
+            $username = (string) ($this->telegram->Username() ?? '');
+            $mobile = $user && $user->is_verified ? (string) ($user->mobile ?? '') : '-';
+
+            $name = trim(($firstName . ' ' . $lastName)) ?: '-';
+            $usernameLine = $username !== '' ? '@' . $username : '-';
+
+            $adminChatId = (string) config('services.telegram.admin_chat_id', '');
+            if ($adminChatId !== '') {
+                $adminMessage = "📬 پیام جدید از کاربر\n\n"
+                    . '👤 نام: ' . $name . "\n"
+                    . '🆔 ChatID: ' . $chatId . "\n"
+                    . '🏷️ Username: ' . $usernameLine . "\n"
+                    . '📱 موبایل: ' . $mobile . "\n\n"
+                    . "متن:\n" . $text;
+
+                $this->telegram->sendMessage([
+                    'chat_id' => $adminChatId,
+                    'text' => $adminMessage,
+                ]);
+            }
+
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => '✅ پیام شما برای مدیر ارسال شد. ممنون از همراهی‌تون!',
+            ]);
+            $this->state->clear($chatId);
+            $this->menu->hideReplyKeyboard($chatId);
+            $this->menu->sendMainMenu($chatId);
+            return;
+        }
+
         if ($text === '📍️ افزودن آدرس جدید') {
             if ($this->userAddress->isVerified($chatId)) {
                 $this->addressFlow->showAddAddressFlow($chatId);
@@ -159,9 +206,17 @@ class TelegramUpdateDispatcher
                 'parse_mode' => 'HTML',
             ]);
         } elseif ($text === '📨 پیشنهاد یا گزارش مشکل') {
+            $this->state->set($chatId, ['step' => 'await_feedback']);
+            $keyboard = [
+                [
+                    $this->telegram->buildKeyboardButton('انصراف'),
+                ],
+            ];
+            $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, true, true, true);
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'پیشنهادات یا گزارش مشکلات را به صورت خصوصی با ما در ارتباط باشید',
+                'text' => 'ممنون از همراهیتون! 😊 لطفاً پیشنهاد یا گزارش مشکلی که دارید رو تو یه پیام بفرستید. همه پیام‌ها با دقت توسط مدیر بررسی می‌شن! 🌟',
+                'reply_markup' => $replyKeyboard,
             ]);
         } elseif ($text === '📜 قوانین و مقررات') {
             $this->telegram->sendMessage([
