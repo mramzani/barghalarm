@@ -33,11 +33,12 @@ return [
 
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'proxy_enabled' => env('TELEGRAM_PROXY_ENABLED'),
         'proxy' => [
-            'url' => '',
-            'port' => '',
-            'type' => '',
-            'auth' => '',
+            'url' => env('TELEGRAM_PROXY_URL'),
+            'port' => env('TELEGRAM_PROXY_PORT'),
+            'type' => env('TELEGRAM_PROXY_TYPE'),
+            'auth' => env('TELEGRAM_PROXY_AUTH'),
         ],
     ],
 

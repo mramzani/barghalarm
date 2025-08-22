@@ -17,12 +17,12 @@ class TelegramServiceProvider extends ServiceProvider
             return new TelegramService(
                 $config['bot_token'],
                 true,
-                // [
-                //     'url' => $config['proxy']['url'],
-                //     'port' => $config['proxy']['port'],
-                //     'type' => $config['proxy']['type'],
-                //     'auth' => $config['proxy']['auth'],
-                // ]
+                $config['proxy_enabled'] ? [
+                    'url' => $config['proxy']['url'],
+                    'port' => $config['proxy']['port'],
+                    'type' => $config['proxy']['type'] ?? CURLPROXY_HTTP,
+                    'auth' => $config['proxy']['auth'] ?? '',
+                ] : []
             );
         });
     }

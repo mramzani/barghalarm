@@ -26,6 +26,11 @@ class TelegramUpdateDispatcher
     public function dispatch(): void
     {
         $chatId = $this->telegram->ChatID();
+        if ($chatId === null || $chatId === '') {
+            // Ignore updates that don't carry a chat context (e.g., my_chat_member)
+            return;
+        }
+
         $text = trim((string) $this->telegram->Text());
         $updateType = $this->telegram->getUpdateType();
 

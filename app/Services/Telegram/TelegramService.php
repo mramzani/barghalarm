@@ -867,21 +867,35 @@ class TelegramService
      */
     public function ChatID()
     {
-        $type = $this->getUpdateType();
-        if ($type == self::CALLBACK_QUERY) {
-            return @$this->data['callback_query']['message']['chat']['id'];
+        $update = $this->data;
+
+        if (isset($update['callback_query']['message']['chat']['id'])) {
+            return $update['callback_query']['message']['chat']['id'];
         }
-        if ($type == self::CHANNEL_POST) {
-            return @$this->data['channel_post']['chat']['id'];
+        if (isset($update['channel_post']['chat']['id'])) {
+            return $update['channel_post']['chat']['id'];
         }
-        if ($type == self::EDITED_MESSAGE) {
-            return @$this->data['edited_message']['chat']['id'];
+        if (isset($update['edited_message']['chat']['id'])) {
+            return $update['edited_message']['chat']['id'];
         }
-        if ($type == self::INLINE_QUERY) {
-            return @$this->data['inline_query']['from']['id'];
+        if (isset($update['inline_query']['from']['id'])) {
+            return $update['inline_query']['from']['id'];
+        }
+        if (isset($update['message']['chat']['id'])) {
+            return $update['message']['chat']['id'];
+        }
+        // Handle other Telegram update types that may arrive without a `message` key
+        if (isset($update['my_chat_member']['chat']['id'])) {
+            return $update['my_chat_member']['chat']['id'];
+        }
+        if (isset($update['chat_member']['chat']['id'])) {
+            return $update['chat_member']['chat']['id'];
+        }
+        if (isset($update['chat_join_request']['chat']['id'])) {
+            return $update['chat_join_request']['chat']['id'];
         }
 
-        return $this->data['message']['chat']['id'];
+        return null;
     }
 
     /// Get the message_id of the current message
