@@ -40,7 +40,7 @@ class MenuService
     {
         $keyboard = [
             [
-                $this->telegram->buildKeyboardButton('اشتراک‌گذاری شماره موبایل 📱', true, false),
+                $this->telegram->buildKeyboardButton('👈 فعال‌سازی ربات 📱', true, false),
             ],
         ];
         $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, true, true, true);
