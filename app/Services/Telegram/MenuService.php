@@ -46,7 +46,7 @@ class MenuService
         $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, true, true, true);
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
-            'text' => 'برای فعال‌سازی، لطفاً شماره موبایل خود را با دکمه زیر ارسال کنید (فقط شماره ایران).',
+            'text' => 'دکمه زیر رو بزن تا حساب کاربریت فعالسازی بشه'. "\n\n" . "👇👇👇👇👇",
             'reply_markup' => $replyKeyboard,
         ]);
     }
