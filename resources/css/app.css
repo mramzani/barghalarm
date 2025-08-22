@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "flowbite/src/themes/default.css";
+@plugin "flowbite/plugin";
+@source "../../node_modules/flowbite";
+@layer base {
+    html {
+        font-family: 'Estedad', sans-serif;
+    }
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
