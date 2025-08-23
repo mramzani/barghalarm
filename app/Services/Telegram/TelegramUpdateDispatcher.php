@@ -96,9 +96,9 @@ class TelegramUpdateDispatcher
         ]);
 
         if ($payload !== '' && str_starts_with($payload, 'add-')) {
-            $code = (int) str_replace('add-', '', $payload);
-            $addressId = Address::where('code', $code)->value('id');
-            Log::info('addressId: ' . $addressId . 'chatId: ' . $chatId); //TODO: for debug
+            $addressId = (int) str_replace('add-', '', $payload);
+            //$addressId = Address::where('code', $code)->value('id');
+           
             if ($addressId) {
                 $this->confirmAddressAdded($chatId, (int) $addressId);
                 $this->menu->hideReplyKeyboard($chatId);
@@ -378,8 +378,8 @@ class TelegramUpdateDispatcher
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
-            $code = (int) str_replace('SHARE_', '', $text);
-            $link = 'https://t.me/' . $botUsername . '?start=add-' . $code;
+            $addressId = (int) str_replace('SHARE_', '', $text);
+            $link = 'https://t.me/' . $botUsername . '?start=add-' . $addressId;
             $cta = "دوست داری زمان‌بندی قطعی برق محله‌ات رو سریع و دقیق بدونی؟\n" .
                 "کافیه روی لینک زیر بزنی،  و من بلافاصله این آدرس رو برات اضافه می‌کنم. از این به بعد هر قطعی‌ای باشه، بهت خبر می‌دم!\n\n" .
                 $link;
@@ -430,7 +430,7 @@ class TelegramUpdateDispatcher
                 ],
                 [
                     $this->telegram->buildInlineKeyboardButton($active ? 'خاموش کردن اعلان 🔕' : 'روشن کردن اعلان 🔔', '', 'TOGGLE_' . $address->id),
-                    $this->telegram->buildInlineKeyboardButton('اشتراک‌گذاری 🔗', '', 'SHARE_' . $address->code),
+                    $this->telegram->buildInlineKeyboardButton('اشتراک‌گذاری 🔗', '', 'SHARE_' . $address->id),
                 ],
             ];
             $this->telegram->sendMessage([
