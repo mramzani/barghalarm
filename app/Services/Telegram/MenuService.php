@@ -7,9 +7,7 @@ namespace App\Services\Telegram;
  */
 class MenuService
 {
-    public function __construct(public TelegramService $telegram)
-    {
-    }
+    public function __construct(public TelegramService $telegram) {}
 
     public function sendMainMenu(int|string $chatId): void
     {
@@ -25,13 +23,13 @@ class MenuService
                 $this->telegram->buildKeyboardButton('💡 درباره ما'),
                 $this->telegram->buildKeyboardButton('📨 پیشنهاد یا گزارش مشکل'),
                 // $this->telegram->buildKeyboardButton('📜 قوانین و مقررات'),
-            ]
+            ],
         ];
         $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, false, true, true);
 
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
-            'text' => '👋 رفیق! به منو اصلی اومدی' . "\n\n" . 'یکی از گزینه‌ها رو انتخاب کن:' . "\n\n" . "👇👇👇",
+            'text' => '👋 رفیق! به منو اصلی اومدی   '."\n\n".'یکی از گزینه‌ها رو انتخاب کن:'."\n\n".'👇👇👇',
             'reply_markup' => $replyKeyboard,
         ]);
     }
@@ -46,7 +44,7 @@ class MenuService
         $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, true, true, true);
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
-            'text' => 'دکمه زیر رو بزن تا حساب کاربریت فعالسازی بشه'. "\n\n" . "👇👇👇👇👇",
+            'text' => 'دکمه زیر رو بزن تا حساب کاربریت فعالسازی بشه'."\n\n".'👇👇👇👇👇',
             'reply_markup' => $replyKeyboard,
         ]);
     }
@@ -62,5 +60,3 @@ class MenuService
         ]);
     }
 }
-
-

@@ -139,7 +139,7 @@ class AddressFlowService
                     $t = substr($t, 0, 48).(strlen($t) > 48 ? '…' : '');
                 }
 
-                return $emoji.' '.$t;
+                return '✅ انتخاب آدرس '.$emoji.' '.$t;
             })($addr->address);
 
             $kbRows[] = [
@@ -163,7 +163,7 @@ class AddressFlowService
 
         $body = count($lines) === 0
             ? 'هیچ آدرسی با این کلمه پیدا نشد.'
-            : implode("\n", $lines);
+            : implode("\n", $lines)."\n\n".'از بین نتایج بالا، یک رو انتخاب کن و روی عددش این پایین بزن 👇👇👇';
 
         $this->sendOrEdit($chatId, $header."\n\n".$body, $replyMarkup);
     }
