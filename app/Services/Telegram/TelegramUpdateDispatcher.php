@@ -505,13 +505,29 @@ class TelegramUpdateDispatcher
             $lines[] = $num . '. ' . 'ساعت ' . $start . ' الی ' . $end;
         }
 
-        $text = '⏰ طبق اطلاع شرکت برق، زمان قطع برق شما در تاریخ ' . $dateFa . ' :' . "\n"
-            . implode("\n", $lines);
+        $cityName = '';
+        $address = Address::with('city')->find($addressId);
+        if ($address && $address->city) {
+            $cityName = (string) $address->city->name();
+        }
+        $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . ($address->address ?? ''), ' |');
+
+        $sections = [];
+        foreach ($blackouts as $b) {
+            $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
+            $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
+            $sections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
+        }
+
+        $final = '📅 برنامه قطعی امروز (' . $dateFa . '):' . "\n\n"
+            . e($locationLine) . "\n\n"
+            . implode("\n\n", $sections);
 
         // Always send as a NEW message to keep previous search results visible
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
-            'text' => $text,
+            'text' => $final,
+            'parse_mode' => 'HTML',
         ]);
     }
 

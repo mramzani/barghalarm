@@ -61,25 +61,28 @@ class SendBlackoutNotificationsForUser implements ShouldQueue
                 continue;
             }
 
-            $lines = [];
-            foreach ($blackouts as $index => $blackout) {
+            $cityName = optional($address->city)->name() ?? '';
+            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
+
+            $sections = [];
+            foreach ($blackouts as $blackout) {
                 $start = $blackout->outage_start_time !== null
                     ? Carbon::parse($blackout->outage_start_time)->format('H:i')
                     : '—';
                 $end = $blackout->outage_end_time !== null
                     ? Carbon::parse($blackout->outage_end_time)->format('H:i')
                     : '—';
-                $num = $index + 1;
-                $lines[] = $num . '. ' . 'ساعت ' . $start . ' الی ' . $end;
+                $sections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
             }
 
-            $cityName = optional($address->city)->name() ?? '';
-            $header = '📍 ' . trim($cityName . ' - ' . $address->address, ' -');
-            $text = $header . "\n" . '⏰ طبق اطلاع شرکت برق، زمان قطع برق شما در تاریخ ' . $dateFa . ' :' . "\n" . implode("\n", $lines);
+            $final = '📅 برنامه قطعی (' . $dateFa . '):' . "\n\n"
+                . e($locationLine) . "\n\n"
+                . implode("\n\n", $sections);
 
             $telegram->sendMessage([
                 'chat_id' => (int) $user->chat_id,
-                'text' => $text,
+                'text' => $final,
+                'parse_mode' => 'HTML',
             ]);
         }
     }
