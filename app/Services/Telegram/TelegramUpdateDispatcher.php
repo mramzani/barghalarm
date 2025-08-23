@@ -124,6 +124,7 @@ class TelegramUpdateDispatcher
                 ]);
                 $this->menu->hideReplyKeyboard($chatId);
                 $this->showAddressList($chatId);
+                $this->menu->sendMainMenu($chatId);
                 return;
             }
 
@@ -135,6 +136,7 @@ class TelegramUpdateDispatcher
             ]);
             $this->menu->hideReplyKeyboard($chatId);
             $this->showAddressList($chatId);
+            $this->menu->sendMainMenu($chatId);
             return;
         }
 
@@ -354,12 +356,29 @@ class TelegramUpdateDispatcher
             //$this->showAddressList($chatId);
         }
         if (strpos($text, 'TOGGLE_') === 0) {
-            $this->telegram->answerCallbackQuery([
-                'callback_query_id' => $this->telegram->Callback_ID(),
-            ]);
             $addressId = (int) str_replace('TOGGLE_', '', $text);
             $this->userAddress->toggleAddressNotify($chatId, $addressId);
-            //$this->showAddressList($chatId);
+            // Update the same message (text + inline keyboard) instead of sending a new one
+            $messageId = $this->telegram->MessageID();
+            [$newText, $newReplyMarkup, $isActive] = $this->buildAddressCardForUser($chatId, $addressId);
+            if ($newText !== null) {
+                $payload = [
+                    'chat_id' => $chatId,
+                    'message_id' => $messageId,
+                    'text' => $newText,
+                    'parse_mode' => 'HTML',
+                ];
+                if ($newReplyMarkup !== null) {
+                    $payload['reply_markup'] = $newReplyMarkup;
+                }
+                $this->telegram->editMessageText($payload);
+            }
+            // Show a brief toast to confirm status update
+            $this->telegram->answerCallbackQuery([
+                'callback_query_id' => $this->telegram->Callback_ID(),
+                'text' => 'وضعیت اعلان به‌روزرسانی شد: ' . ($isActive ? 'روشن' : 'خاموش'),
+                'show_alert' => false,
+            ]);
         }
         if (strpos($text, 'RENAME_') === 0) {
             $keyboard = [
@@ -451,29 +470,12 @@ class TelegramUpdateDispatcher
         }
 
         foreach ($addresses as $address) {
-            $alias = $address->pivot->name ?? null;
-            $cityName = $address->city ? '📍 ' . $address->city->name() : '';
-            $titleLine = $alias ? '📌 نام محل: ' . $alias . "\n" : '';
-            $active = (bool) ($address->pivot->is_active ?? true);
-            $status = $active ? '<blockquote>🔔 اعلان: روشن</blockquote>' : '<blockquote>🔕 اعلان: خاموش</blockquote>';
-            $text = $titleLine . $cityName . " | " . $address->address . "\n\n" . $status;
-
-            $buttons = [
-                [
-                    $this->telegram->buildInlineKeyboardButton('حذف 🗑️', '', 'DEL_' . $address->id),
-                    $this->telegram->buildInlineKeyboardButton('برچسب ✏️', '', 'RENAME_' . $address->id),
-                    // $this->telegram->buildInlineKeyboardButton('ویرایش 🛠️', '', 'EDIT_' . $address->id),
-                ],
-                [
-                    $this->telegram->buildInlineKeyboardButton($active ? 'خاموش کردن اعلان 🔕' : 'روشن کردن اعلان 🔔', '', 'TOGGLE_' . $address->id),
-                    $this->telegram->buildInlineKeyboardButton('اشتراک‌گذاری 🔗', '', 'SHARE_' . $address->id),
-                ],
-            ];
+            [$text, $replyMarkup] = $this->buildAddressCardForUser($chatId, (int) $address->id);
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => $text,
+                'text' => $text ?? '',
                 'parse_mode' => 'HTML',
-                'reply_markup' => $this->telegram->buildInlineKeyBoard($buttons),
+                'reply_markup' => $replyMarkup,
             ]);
         }
 
@@ -486,6 +488,44 @@ class TelegramUpdateDispatcher
         //         ],
         //     ]),
         // ]);
+    }
+
+    /**
+     * Build a single address card (text + inline keyboard) for a given user/address.
+     *
+     * @return array{0:?string,1:?string} [text, replyMarkup]
+     */
+    protected function buildAddressCardForUser(int|string $chatId, int $addressId): array
+    {
+        $user = $this->userAddress->findUserByChatId($chatId);
+        if (!$user) {
+            return [null, null, null];
+        }
+
+        $address = $user->addresses()->with('city')->where('addresses.id', $addressId)->first();
+        if (!$address) {
+            return [null, null, null];
+        }
+
+        $alias = $address->pivot->name ?? null;
+        $cityName = $address->city ? '📍 ' . $address->city->name() : '';
+        $titleLine = $alias ? '📌 نام محل: ' . $alias . "\n" : '';
+        $active = (bool) ($address->pivot->is_active ?? true);
+        $status = $active ? '<blockquote>🔔 اعلان: روشن</blockquote>' : '<blockquote>🔕 اعلان: خاموش</blockquote>';
+        $text = $titleLine . $cityName . ' | ' . $address->address . "\n\n" . $status;
+
+        $buttons = [
+            [
+                $this->telegram->buildInlineKeyboardButton('حذف 🗑️', '', 'DEL_' . $address->id),
+                $this->telegram->buildInlineKeyboardButton('برچسب ✏️', '', 'RENAME_' . $address->id),
+            ],
+            [
+                $this->telegram->buildInlineKeyboardButton($active ? 'خاموش کردن اعلان 🔕' : 'روشن کردن اعلان 🔔', '', 'TOGGLE_' . $address->id),
+                $this->telegram->buildInlineKeyboardButton('اشتراک‌گذاری 🔗', '', 'SHARE_' . $address->id),
+            ],
+        ];
+
+        return [$text, $this->telegram->buildInlineKeyBoard($buttons), $active];
     }
 
     protected function confirmAddressAdded(int|string $chatId, int $addressId): void
