@@ -116,12 +116,24 @@ class TelegramUpdateDispatcher
         $state = $this->state->get($chatId);
 
         if (array_key_exists('step', $state) && $state['step'] === 'await_rename' && array_key_exists('address_id', $state)) {
+            if ($text === 'انصراف') {
+                $this->state->clear($chatId);
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => '❌ ویرایش برچسب لغو شد.',
+                ]);
+                $this->menu->hideReplyKeyboard($chatId);
+                $this->showAddressList($chatId);
+                return;
+            }
+
             $this->userAddress->setAddressAlias($chatId, (int) $state['address_id'], $text);
             $this->state->clear($chatId);
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => '✅برچسب ذخیره شد.',
             ]);
+            $this->menu->hideReplyKeyboard($chatId);
             $this->showAddressList($chatId);
             return;
         }
@@ -350,28 +362,36 @@ class TelegramUpdateDispatcher
             //$this->showAddressList($chatId);
         }
         if (strpos($text, 'RENAME_') === 0) {
+            $keyboard = [
+                [
+                    $this->telegram->buildKeyboardButton('انصراف'),
+                ],
+            ];
+            $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, true, true, true);
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
             $addressId = (int) str_replace('RENAME_', '', $text);
             $this->state->set($chatId, ['step' => 'await_rename', 'address_id' => $addressId]);
+            
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => '✏️ برچسب جدید را ارسال کنید:',
+                'text' => '✏️ یک اسم برای این آدرس بنویس',
+                'reply_markup' => $replyKeyboard,
             ]);
         }
-        if (strpos($text, 'EDIT_') === 0) {
-            $this->telegram->answerCallbackQuery([
-                'callback_query_id' => $this->telegram->Callback_ID(),
-            ]);
-            $addressId = (int) str_replace('EDIT_', '', $text);
-            $address = Address::find($addressId);
-            if ($address) {
-                $this->addressFlow->promptForKeyword($chatId, (int) $address->city_id);
-            } else {
-                $this->addressFlow->showAddAddressFlow($chatId);
-            }
-        }
+        // if (strpos($text, 'EDIT_') === 0) {
+        //     $this->telegram->answerCallbackQuery([
+        //         'callback_query_id' => $this->telegram->Callback_ID(),
+        //     ]);
+        //     $addressId = (int) str_replace('EDIT_', '', $text);
+        //     $address = Address::find($addressId);
+        //     if ($address) {
+        //         $this->addressFlow->promptForKeyword($chatId, (int) $address->city_id);
+        //     } else {
+        //         $this->addressFlow->showAddAddressFlow($chatId);
+        //     }
+        // }
         if (strpos($text, 'SHARE_') === 0) {
             $botUsername = config('services.telegram.bot_username');
 
@@ -380,12 +400,28 @@ class TelegramUpdateDispatcher
             ]);
             $addressId = (int) str_replace('SHARE_', '', $text);
             $link = 'https://t.me/' . $botUsername . '?start=add-' . $addressId;
-            $cta = "دوست داری زمان‌بندی قطعی برق محله‌ات رو سریع و دقیق بدونی؟\n" .
-                "کافیه روی لینک زیر بزنی،  و من بلافاصله این آدرس رو برات اضافه می‌کنم. از این به بعد هر قطعی‌ای باشه، بهت خبر می‌دم!\n\n" .
-                $link;
+
+            $address = Address::with('city')->find($addressId);
+            $cityName = $address && $address->city ? (string) $address->city->name() : '';
+            $addressText = $address ? (string) ($address->address ?? '') : '';
+            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $addressText, ' |');
+
+            $cta = "سلام! 😊\n"
+                . "اگه عضو ربات بشی، هر روز صبح ساعت 7 و حدود 20 دقیقه قبل از هر قطعی برق بهت خبر میده.\n"
+                . "این آدرس هم همون لحظه برات اضافه می‌شه و از این به بعد اعلان می‌گیری:\n"
+                . '<blockquote>' . e($locationLine) . '</blockquote>' . "\n"
+                . "برای شروع، روی این لینک بزن:\n"
+                . $link;
+
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => 'پیام زیر رو برای شخصی که میخواد اضافه کنه ارسال کن' . "\n\n" . "👇👇👇",
+            ]);
+
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => $cta,
+                'parse_mode' => 'HTML',
             ]);
         }
         if ($text === 'TURN_ON_BOT') {
