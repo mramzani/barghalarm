@@ -34,7 +34,6 @@ class SendBlackoutNotificationsForUser implements ShouldQueue
     {
         $user = User::query()
             ->whereKey($this->userId)
-            ->where('is_verified', true)
             ->where('is_active', true)
             ->whereNotNull('chat_id')
             ->with([

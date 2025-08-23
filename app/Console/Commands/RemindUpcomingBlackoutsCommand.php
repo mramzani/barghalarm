@@ -52,6 +52,9 @@ class RemindUpcomingBlackoutsCommand extends Command
 
         $notified = 0;
 
+        // Aggregate sections per user to send a single message containing all relevant addresses
+        $userMessages = [];
+
         foreach ($blackouts as $blackout) {
             $address = $blackout->address;
             if ($address === null) {
@@ -59,7 +62,6 @@ class RemindUpcomingBlackoutsCommand extends Command
             }
 
             $users = User::query()
-                ->where('is_verified', true)
                 ->where('is_active', true)
                 ->whereNotNull('chat_id')
                 ->whereHas('addresses', function ($q) use ($address) {
@@ -77,30 +79,55 @@ class RemindUpcomingBlackoutsCommand extends Command
             $dateFa = (new Verta($date))->format('l j F');
 
             $cityName = optional($address->city)->name() ?? '';
-            $header = '📍 ' . trim($cityName . ' - ' . $address->address, ' -');
-            $text = $header . "\n"
-                . '⏰ یادآوری: حدود ' . $minutes . ' دقیقه دیگر (' . $start . ') در تاریخ ' . $dateFa . ' برق شما قطع می‌شود.' . "\n"
-                . 'بازه زمانی قطع: ' . $start . ' الی ' . $end;
+            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
+
+            $reminderLine = '⏰ یادآوری: حدود ' . $minutes . ' دقیقه دیگر (' . $start . ') در تاریخ ' . $dateFa . ' برق شما قطع می‌شود.';
+            $windowLine = '⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end;
+
+            // Build HTML section with blockquotes for the two reminder lines
+            $section = '<blockquote>' . e($reminderLine) . '</blockquote>' . "\n\n"
+                . e($locationLine) . "\n\n"
+                . '<blockquote>' . e($windowLine) . '</blockquote>';
 
             foreach ($users as $user) {
                 $dedupeKey = 'pre_outage_notified:' . $blackout->id . ':' . $user->id . ':' . Carbon::parse($blackout->outage_start_time)->timestamp;
 
                 if (Cache::add($dedupeKey, true, now()->addHours(24))) {
-                    if ($this->option('dry-run')) {
-                        Log::info('DRY RUN pre-outage notify', [
-                            'user_id' => $user->id,
-                            'chat_id' => $user->chat_id,
-                            'blackout_id' => $blackout->id,
-                        ]);
-                    } else {
-                        $telegram->sendMessage([
+                    // Initialize structure for this user
+                    if (!isset($userMessages[$user->id])) {
+                        $userMessages[$user->id] = [
                             'chat_id' => (int) $user->chat_id,
-                            'text' => $text,
-                        ]);
+                            'sections' => [],
+                        ];
                     }
 
+                    // Add separator if there are previous sections
+                    if (!empty($userMessages[$user->id]['sections'])) {
+                        $userMessages[$user->id]['sections'][] = '🔹🔻🔻🔻🔻🔹';
+                    }
+
+                    $userMessages[$user->id]['sections'][] = $section;
                     $notified++;
                 }
+            }
+        }
+
+        // Send aggregated messages per user
+        foreach ($userMessages as $userId => $payload) {
+            $body = '🚨 هشدار قطعی برق' . "\n\n" . implode("\n\n", $payload['sections']);
+
+            if ($this->option('dry-run')) {
+                Log::info('DRY RUN pre-outage notify (aggregated)', [
+                    'user_id' => $userId,
+                    'chat_id' => $payload['chat_id'],
+                    'message' => $body,
+                ]);
+            } else {
+                $telegram->sendMessage([
+                    'chat_id' => $payload['chat_id'],
+                    'text' => $body,
+                    'parse_mode' => 'HTML',
+                ]);
             }
         }
 

@@ -30,7 +30,6 @@ class CheckBlackoutsCommand extends Command
         $dispatchedJobs = 0;
 
         User::query()
-            ->where('is_verified', true)
             ->where('is_active', true)
             ->whereNotNull('chat_id')
             ->select(['id'])

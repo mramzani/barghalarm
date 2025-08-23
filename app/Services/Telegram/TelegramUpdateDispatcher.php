@@ -6,6 +6,7 @@ use App\Models\Address;
 use App\Models\Blackout;
 use Illuminate\Support\Carbon;
 use Hekmatinasser\Verta\Verta;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Coordinates Telegram update handling by delegating to smaller services.
@@ -85,37 +86,28 @@ class TelegramUpdateDispatcher
         $message = "👋 سلام! خوش اومدی به ربات اطلاع رسانی قطعی برق مازندران!\n"
             . "توجه‌داشته‌باشید ربات هیچ ارتباطی با اداره برق ندارد و تنها\n"
             . "جهت خدمت‌رسانی به همشهریان عزیز ایجاد شده‌است.\n\n"
-            . $note . "\n\n"
-            . "لطفاً یک گزینه رو انتخاب کن:\n";
-
+            . $note . "\n\n";
+            
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => $message,
             'parse_mode' => 'HTML',
-            'reply_markup' => $replyMarkup,
+            // 'reply_markup' => $replyMarkup,
         ]);
 
         if ($payload !== '' && str_starts_with($payload, 'add-')) {
             $code = (int) str_replace('add-', '', $payload);
             $addressId = Address::where('code', $code)->value('id');
+            Log::info('addressId: ' . $addressId . 'chatId: ' . $chatId); //TODO: for debug
             if ($addressId) {
-                if ($this->userAddress->isVerified($chatId)) {
-                    $this->confirmAddressAdded($chatId, (int) $addressId);
-                    $this->menu->hideReplyKeyboard($chatId);
-                    $this->menu->sendMainMenu($chatId);
-                } else {
-                    $this->state->set($chatId, ['pending_add_code' => $code]);
-                    $this->menu->requestPhoneShare($chatId);
-                }
+                $this->confirmAddressAdded($chatId, (int) $addressId);
+                $this->menu->hideReplyKeyboard($chatId);
+                $this->menu->sendMainMenu($chatId);
             } else {
-                if ($user && (bool) $user->is_verified) {
-                    $this->menu->sendMainMenu($chatId);
-                }
-            }
-        } else {
-            if ($user && (bool) $user->is_verified) {
                 $this->menu->sendMainMenu($chatId);
             }
+        } else {
+            $this->menu->sendMainMenu($chatId);
         }
     }
 
@@ -137,7 +129,7 @@ class TelegramUpdateDispatcher
         if (array_key_exists('step', $state) && $state['step'] === 'await_keyword' && array_key_exists('city_id', $state)) {
             // During keyword step, ignore main menu reply buttons and re-prompt
             $mainMenuButtons = [
-                '🗂️ مدیریت آدرس‌ها',
+                '🗂️ آدرس‌های من',
                 '📍️ افزودن آدرس جدید',
                 '🔴 وضعیت قطعی‌ها',
                 '💡 درباره ما',
@@ -170,7 +162,7 @@ class TelegramUpdateDispatcher
             $firstName = $user ? (string) ($user->first_name ?? '') : (string) ($this->telegram->FirstName() ?? '');
             $lastName = $user ? (string) ($user->last_name ?? '') : (string) ($this->telegram->LastName() ?? '');
             $username = (string) ($this->telegram->Username() ?? '');
-            $mobile = $user && $user->is_verified ? (string) ($user->mobile ?? '') : '-';
+            $mobile = $user ? (string) ($user->mobile ?? '') : '-';
 
             $name = trim(($firstName . ' ' . $lastName)) ?: '-';
             $usernameLine = $username !== '' ? '@' . $username : '-';
@@ -201,17 +193,9 @@ class TelegramUpdateDispatcher
         }
 
         if ($text === '📍️ افزودن آدرس جدید') {
-            if ($this->userAddress->isVerified($chatId)) {
-                $this->addressFlow->showAddAddressFlow($chatId);
-            } else {
-                $this->menu->requestPhoneShare($chatId);
-            }
-        } elseif ($text === '🗂️ مدیریت آدرس‌ها') {
-            if ($this->userAddress->isVerified($chatId)) {
-                $this->showAddressList($chatId);
-            } else {
-                $this->menu->requestPhoneShare($chatId);
-            }
+            $this->addressFlow->showAddAddressFlow($chatId);
+        } elseif ($text === '🗂️ آدرس‌های من') {
+            $this->showAddressList($chatId);
         } elseif ($text === '💡 درباره ما') {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
@@ -238,11 +222,7 @@ class TelegramUpdateDispatcher
                 'text' => 'در حال حاضر قوانین و مقررات وجود ندارد',
             ]);
         } elseif ($text === '🔴 وضعیت قطعی‌ها') {
-            if ($this->userAddress->isVerified($chatId)) {
-                $this->notifyTodaysBlackoutsForAllAddresses($chatId);
-            } else {
-                $this->menu->requestPhoneShare($chatId);
-            }
+            $this->notifyTodaysBlackoutsForAllAddresses($chatId);
         }
     }
 
@@ -255,7 +235,6 @@ class TelegramUpdateDispatcher
                 'chat_id' => $chatId,
                 'text' => '❌ لطفاً شماره تلفن ایران معتبر ارسال کنید (با کد +98).',
             ]);
-            $this->menu->requestPhoneShare($chatId);
             return;
         }
 
@@ -303,32 +282,20 @@ class TelegramUpdateDispatcher
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
-            if ($this->userAddress->isVerified($chatId)) {
-                $this->addressFlow->showAddAddressFlow($chatId);
-            } else {
-                $this->menu->requestPhoneShare($chatId);
-            }
+            $this->addressFlow->showAddAddressFlow($chatId);
         }
         if ($text === 'VIEW_ADDRS') {
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
-            if ($this->userAddress->isVerified($chatId)) {
-                $this->showAddressList($chatId);
-            } else {
-                $this->menu->requestPhoneShare($chatId);
-            }
+            $this->showAddressList($chatId);
         }
         if (strpos($text, 'CITY_') === 0) {
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
             $cityId = (int) str_replace('CITY_', '', $text);
-            if ($this->userAddress->isVerified($chatId)) {
-                $this->addressFlow->promptForKeyword($chatId, $cityId);
-            } else {
-                $this->menu->requestPhoneShare($chatId);
-            }
+            $this->addressFlow->promptForKeyword($chatId, $cityId);
         }
         if ($text === 'SEARCH_AGAIN') {
             $this->telegram->answerCallbackQuery([
@@ -406,11 +373,13 @@ class TelegramUpdateDispatcher
             }
         }
         if (strpos($text, 'SHARE_') === 0) {
+            $botUsername = config('services.telegram.bot_username');
+
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
             $code = (int) str_replace('SHARE_', '', $text);
-            $link = 'https://t.me/mazandbarghalertbot?start=add-' . $code;
+            $link = 'https://t.me/' . $botUsername . '?start=add-' . $code;
             $cta = "دوست داری زمان‌بندی قطعی برق محله‌ات رو سریع و دقیق بدونی؟\n" .
                 "کافیه روی لینک زیر بزنی،  و من بلافاصله این آدرس رو برات اضافه می‌کنم. از این به بعد هر قطعی‌ای باشه، بهت خبر می‌دم!\n\n" .
                 $link;
@@ -423,7 +392,7 @@ class TelegramUpdateDispatcher
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
             ]);
-            $this->menu->requestPhoneShare($chatId);
+            $this->menu->sendMainMenu($chatId);
         }
         if ($text === 'TURN_OFF_BOT') {
             $this->telegram->answerCallbackQuery([
@@ -437,6 +406,7 @@ class TelegramUpdateDispatcher
         $user = $this->userAddress->findUserByChatId($chatId);
         $addresses = $user ? $user->addresses()->with('city')->get() : collect();
 
+
         if ($addresses->count() === 0) {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
@@ -446,17 +416,17 @@ class TelegramUpdateDispatcher
 
         foreach ($addresses as $address) {
             $alias = $address->pivot->name ?? null;
-            $cityName = $address->city ? $address->city->name() : '';
-            $titleLine = $alias ? 'برچسب: ' . $alias . "\n" : '';
+            $cityName = $address->city ? '📍 ' . $address->city->name() : '';
+            $titleLine = $alias ? '📌 نام محل: ' . $alias . "\n" : '';
             $active = (bool) ($address->pivot->is_active ?? true);
-            $status = $active ? '🔔 اعلان: روشن' : '🔕 اعلان: خاموش';
-            $text = $titleLine . $cityName . "\n" . $address->address . "\n" . $status;
+            $status = $active ? '<blockquote>🔔 اعلان: روشن</blockquote>' : '<blockquote>🔕 اعلان: خاموش</blockquote>';
+            $text = $titleLine . $cityName . " | " . $address->address . "\n\n" . $status;
 
             $buttons = [
                 [
                     $this->telegram->buildInlineKeyboardButton('حذف 🗑️', '', 'DEL_' . $address->id),
                     $this->telegram->buildInlineKeyboardButton('برچسب ✏️', '', 'RENAME_' . $address->id),
-                    $this->telegram->buildInlineKeyboardButton('ویرایش 🛠️', '', 'EDIT_' . $address->id),
+                    // $this->telegram->buildInlineKeyboardButton('ویرایش 🛠️', '', 'EDIT_' . $address->id),
                 ],
                 [
                     $this->telegram->buildInlineKeyboardButton($active ? 'خاموش کردن اعلان 🔕' : 'روشن کردن اعلان 🔔', '', 'TOGGLE_' . $address->id),
@@ -466,6 +436,7 @@ class TelegramUpdateDispatcher
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => $text,
+                'parse_mode' => 'HTML',
                 'reply_markup' => $this->telegram->buildInlineKeyBoard($buttons),
             ]);
         }
@@ -569,32 +540,35 @@ class TelegramUpdateDispatcher
                 ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
 
             $cityName = $address->city ? $address->city->name() : '';
+            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
 
+            $addressSections = [];
             if ($blackouts->isEmpty()) {
-                $sections[] = '📍 ' . $cityName . "\n" . $address->address . "\n" .
-                    '✅ امروز برای این آدرس قطعی ثبت نشده است.';
-                continue;
+                $addressSections[] = '<blockquote>' . e('✅ امروز برای این آدرس قطعی ثبت نشده است.') . '</blockquote>';
+            } else {
+                foreach ($blackouts as $b) {
+                    $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
+                    $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
+                    $addressSections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
+                }
             }
 
-            $lines = [];
-            foreach ($blackouts as $index => $b) {
-                $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
-                $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
-                $num = $index + 1;
-                $lines[] = $num . '. ' . 'ساعت ' . $start . ' الی ' . $end;
+            $section = e($locationLine) . "\n\n" . implode("\n\n", $addressSections);
+
+            if (!empty($sections)) {
+                $sections[] = '🔹🔻🔻🔻🔻🔹';
             }
 
-            $sections[] = '📍 ' . $cityName . "\n" . $address->address . "\n" .
-                '⏰ ' . $dateFa . "\n" . implode("\n", $lines);
+            $sections[] = $section;
         }
 
         $header = '📅 برنامه قطعی امروز (' . $dateFa . '):';
-        $body = implode("\n\n———\n\n", $sections);
-        $final = $header . "\n\n" . $body;
+        $final = $header . "\n\n" . implode("\n\n", $sections);
 
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => $final,
+            'parse_mode' => 'HTML',
         ]);
     }
 }

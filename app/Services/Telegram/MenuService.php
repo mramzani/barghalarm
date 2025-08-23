@@ -15,7 +15,7 @@ class MenuService
     {
         $keyboard = [
             [
-                $this->telegram->buildKeyboardButton('🗂️ مدیریت آدرس‌ها'),
+                $this->telegram->buildKeyboardButton('🗂️ آدرس‌های من'),
                 $this->telegram->buildKeyboardButton('📍️ افزودن آدرس جدید'),
             ],
             [
