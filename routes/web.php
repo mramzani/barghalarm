@@ -31,7 +31,7 @@ use Hekmatinasser\Verta\Verta;
 //     $scraper = new OutageScraper();
 //     foreach ($cities as $city) {
 //         foreach ($city->areas as $area) {
-//             $blackouts = $scraper->searchOutages('1404/05/31', '1404/05/31', $area->code);
+//             $blackouts = $scraper->searchOutages('1404/06/01', '1404/06/01', $area->code);
 //             $blackouts = array_key_exists(1, $blackouts) ? $blackouts[1] : [];
 //             if (count($blackouts) > 1) {
 //                 foreach ($blackouts as $key => $blackout) {
