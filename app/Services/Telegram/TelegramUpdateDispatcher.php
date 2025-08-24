@@ -6,7 +6,6 @@ use App\Models\Address;
 use App\Models\Blackout;
 use Illuminate\Support\Carbon;
 use Hekmatinasser\Verta\Verta;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Coordinates Telegram update handling by delegating to smaller services.
@@ -122,9 +121,9 @@ class TelegramUpdateDispatcher
                     'chat_id' => $chatId,
                     'text' => '❌ ویرایش برچسب لغو شد.',
                 ]);
+                $this->menu->sendMainMenu($chatId);
                 $this->menu->hideReplyKeyboard($chatId);
                 $this->showAddressList($chatId);
-                $this->menu->sendMainMenu($chatId);
                 return;
             }
 
@@ -145,7 +144,8 @@ class TelegramUpdateDispatcher
             $mainMenuButtons = [
                 '🗂️ آدرس‌های من',
                 '📍️ افزودن آدرس جدید',
-                '🔴 وضعیت قطعی‌ها',
+                '🔴 قطعی‌های امروز',
+                '📆 قطعی‌های فردا',
                 '💡 درباره ما',
                 '📨 پیشنهاد یا گزارش مشکل',
                 '📜 قوانین و مقررات',
@@ -235,8 +235,10 @@ class TelegramUpdateDispatcher
                 'chat_id' => $chatId,
                 'text' => 'در حال حاضر قوانین و مقررات وجود ندارد',
             ]);
-        } elseif ($text === '🔴 وضعیت قطعی‌ها') {
+        } elseif ($text === '🔴 قطعی‌های امروز') {
             $this->notifyTodaysBlackoutsForAllAddresses($chatId);
+        } elseif ($text === '📆 قطعی‌های فردا') {    
+            $this->notifyTomorrowBlackoutsForAllAddresses($chatId);
         }
     }
 
@@ -655,6 +657,63 @@ class TelegramUpdateDispatcher
         }
 
         $header = '📅 برنامه قطعی امروز (' . $dateFa . '):';
+        $final = $header . "\n\n" . implode("\n\n", $sections);
+
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => $final,
+            'parse_mode' => 'HTML',
+        ]);
+    }
+
+    protected function notifyTomorrowBlackoutsForAllAddresses(int|string $chatId): void
+    {
+        $user = $this->userAddress->findUserByChatId($chatId);
+        $addresses = $user ? $user->addresses()->with('city')->get() : collect();
+
+        if ($addresses->isEmpty()) {
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.',
+            ]);
+            return;
+        }
+
+        $tomorrow = Carbon::tomorrow()->toDateString();
+        $vTomorrow = new Verta($tomorrow);
+        $dateFa = $vTomorrow->format('l j F');
+        $sections = [];
+        foreach ($addresses as $address) {
+            $blackouts = Blackout::query()
+                ->where('address_id', $address->id)
+                ->whereDate('outage_date', $tomorrow)
+                ->orderBy('outage_start_time')
+                ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
+
+            $cityName = $address->city ? $address->city->name() : '';
+            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
+
+            $addressSections = [];
+            if ($blackouts->isEmpty()) {
+                $addressSections[] = '<blockquote>' . e('✅ برای فردا قطعی ثبت نشده است.') . '</blockquote>';
+            } else {
+                foreach ($blackouts as $b) {
+                    $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
+                    $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
+                    $addressSections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
+                }
+            }
+
+            $section = e($locationLine) . "\n\n" . implode("\n\n", $addressSections);
+
+            if (!empty($sections)) {
+                $sections[] = '🔹🔻🔻🔻🔻🔹';
+            }
+
+            $sections[] = $section;
+        }
+
+        $header = '📅 برنامه قطعی فردا (' . $dateFa . '):';
         $final = $header . "\n\n" . implode("\n\n", $sections);
 
         $this->telegram->sendMessage([

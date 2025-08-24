@@ -17,7 +17,8 @@ class MenuService
                 $this->telegram->buildKeyboardButton('📍️ افزودن آدرس جدید'),
             ],
             [
-                $this->telegram->buildKeyboardButton('🔴 وضعیت قطعی‌ها'),
+                $this->telegram->buildKeyboardButton('📆 قطعی‌های فردا'),
+                $this->telegram->buildKeyboardButton('🔴 قطعی‌های امروز'),
             ],
             [
                 $this->telegram->buildKeyboardButton('💡 درباره ما'),
