@@ -11,7 +11,19 @@ class MenuService
 
     public function sendMainMenu(int|string $chatId): void
     {
-        $keyboard = [
+        $keyboard = $this->buildMainMenuKeyboard();
+        $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, false, true, true);
+
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => '👋 رفیق! به منو اصلی اومدی   '."\n\n".'یکی از گزینه‌ها رو انتخاب کن:'."\n\n".'👇👇👇',
+            'reply_markup' => $replyKeyboard,
+        ]);
+    }
+
+    public function buildMainMenuKeyboard(): array
+    {
+        return [
             [
                 $this->telegram->buildKeyboardButton('🗂️ آدرس‌های من'),
                 $this->telegram->buildKeyboardButton('📍️ افزودن آدرس جدید'),
@@ -26,13 +38,20 @@ class MenuService
                 // $this->telegram->buildKeyboardButton('📜 قوانین و مقررات'),
             ],
         ];
+    }
+    
+    public function sendMainMenuWithMessage(int|string $chatId, string $text): void
+    {
+        $keyboard = $this->buildMainMenuKeyboard();
+
         $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, false, true, true);
 
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
-            'text' => '👋 رفیق! به منو اصلی اومدی   '."\n\n".'یکی از گزینه‌ها رو انتخاب کن:'."\n\n".'👇👇👇',
+            'text' => $text,
             'reply_markup' => $replyKeyboard,
         ]);
+
     }
 
     public function requestPhoneShare(int|string $chatId): void

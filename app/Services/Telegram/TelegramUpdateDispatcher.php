@@ -206,18 +206,18 @@ class TelegramUpdateDispatcher
             return;
         }
 
-        if ($text === '📍️ افزودن آدرس جدید') {
+        if ($text === '📍️ افزودن آدرس جدید' || $text === '/add_new_address') {
             $this->addressFlow->showAddAddressFlow($chatId);
-        } elseif ($text === '🗂️ آدرس‌های من') {
+        } elseif ($text === '🗂️ آدرس‌های من' || $text === '/my_addresses') {
             $this->showAddressList($chatId);
-        } elseif ($text === '💡 درباره ما') {
+        } elseif ($text === '💡 درباره ما' || $text === '/about_us') {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => '👨‍💻درباره‌ی ما:
 تو این شرایط سخت ندونستن زمان قطعی برق باعث شده خیلی از کسب و کار ها، جلسات، برنامه ریزی ها و قرار های کاری به هم بریزه. خب ما کاری از دستمون در مورد قطعی برق بر نمیاد ولی حداقل تلاش کردیم خدمت کوچیکی به هم استانی های عزیز کرده باشیم.',
                 'parse_mode' => 'HTML',
             ]);
-        } elseif ($text === '📨 پیشنهاد یا گزارش مشکل') {
+        } elseif ($text === '📨 پیشنهاد یا گزارش مشکل' || $text === '/feedback') {
             $this->state->set($chatId, ['step' => 'await_feedback']);
             $keyboard = [
                 [
@@ -245,6 +245,9 @@ class TelegramUpdateDispatcher
                 'text' => "🎉 بروزرسانی جدید!\n\nکاربران گرامی، ربات مازندبرق به نسخه جدید بروزرسانی شد. \nبرای دریافت بروزرسانی جدید و استفاده از ربات، لطفاً دستور 👈 /start  👉 را مجددا اجرا نمایید.\n\nویژگی ها جدید:\n<blockquote>✅ دریافت برنامه قطعی روز آینده</blockquote>\nرفع باگ:\n<blockquote>✅ جستجو با حروف عربی</blockquote>\n<blockquote>✅ رفع برخی باگ‌ها</blockquote>\nبهبودها:\n<blockquote>✅ کوتاه تر شدن انتخاب آدرس</blockquote>\n\n💠 تیم پشتیبانی ربات مازندبرق",
                 'parse_mode' => 'HTML',
             ]);
+        }else{
+            $text = 'عزیزم دستوری که فرستادی ربات نمیفهمه. '."\n".'باید از دکمه‌های پایین استفاده کنی 😉' . "\n\n" . '👇👇👇';
+            $this->menu->sendMainMenuWithMessage($chatId, $text);
         }
     }
 
@@ -473,7 +476,7 @@ class TelegramUpdateDispatcher
         if ($addresses->count() === 0) {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.',
+               'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.' . "\n\n" . 'برای اضافه کردن آدرس، بر روی 👈  /add_new_address  👉 بزنید' . "\n\n" . 'یا بر روی دکمه پایین 📍افزودن آدرس جدید بزنید:' . "\n\n" . '👇👇👇',
             ]);
         }
 
@@ -623,7 +626,7 @@ class TelegramUpdateDispatcher
         if ($addresses->isEmpty()) {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.',
+                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.' . "\n\n" . 'برای اضافه کردن آدرس، بر روی 👈  /add_new_address  👉 بزنید' . "\n\n" . 'یا بر روی دکمه پایین 📍افزودن آدرس جدید بزنید:' . "\n\n" . '👇👇👇',
             ]);
             return;
         }
@@ -680,7 +683,7 @@ class TelegramUpdateDispatcher
         if ($addresses->isEmpty()) {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.',
+                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.' . "\n\n" . 'برای اضافه کردن آدرس، بر روی دکمه 📍افزودن آدرس جدید بزنید:' . "\n\n" . '👇👇👇' . "\n\n" . '/add_new_address',
             ]);
             return;
         }

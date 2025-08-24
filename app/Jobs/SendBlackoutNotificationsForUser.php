@@ -75,7 +75,7 @@ class SendBlackoutNotificationsForUser implements ShouldQueue
                 $sections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
             }
 
-            $final = '📅 برنامه قطعی (' . $dateFa . '):' . "\n\n"
+            $final = '📅 برنامه قطعی (' . $dateFa . '):' . "\n\n"   
                 . e($locationLine) . "\n\n"
                 . implode("\n\n", $sections);
 
