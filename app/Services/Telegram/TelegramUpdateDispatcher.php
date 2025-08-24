@@ -42,6 +42,7 @@ class TelegramUpdateDispatcher
 
         if ($text !== '' && strpos($text, '/start') === 0) {
             $this->handleStart($chatId, $text);
+            return;
         }
 
         if ($text !== '' && strpos($text, '/help') === 0) {
@@ -49,6 +50,7 @@ class TelegramUpdateDispatcher
                 'chat_id' => $chatId,
                 'text' => "کافیست ربات را با کلیک روی این لینک شروع کنید و سپس /start را بزنید\n                    https://t.me/mazandbarghalertbot\nهمچنین شما میتونید همزمان چند آدرس را در ربات ثبت کنید تا همزمان قطعی منزل/محل کار را داشته باشید.",
             ]);
+            return;
         }
 
         if ($updateType === TelegramService::MESSAGE && $text !== '') {
