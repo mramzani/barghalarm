@@ -98,7 +98,7 @@ class AddressFlowService
         $q1 = Address::query()
             ->where('city_id', $cityId)
             ->whereRaw($colTightSql.' LIKE ?', ['%'.$tightKeyword.'%'])
-            ->limit(10)
+            //->limit(10)
             ->get(['id', 'address']);
         $results = $results->merge($q1)->unique('id');
 
@@ -146,12 +146,12 @@ class AddressFlowService
                         $q->orWhereRaw($colLooseSql.' LIKE ?', ['%'.$word.'%']);
                     }
                 })
-                ->limit(10)
+                // ->limit(10)
                 ->get(['id', 'address']);
             $results = $results->merge($q5)->unique('id');
         }
 
-        $results = $results->take(10);
+        // $results = $results->take(10);
 
         $city = City::find($cityId);
         $cityName = $city ? $city->name() : '';
