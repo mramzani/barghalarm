@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Hekmatinasser\Verta\Verta;
+use App\Http\Controllers\PaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -123,4 +124,9 @@ use Hekmatinasser\Verta\Verta;
 Route::post('/telegram/bot', [TelegramController::class, 'handle']);
 Route::get('/info', [TelegramController::class, 'webhookInfo']);
 Route::get('/set', [TelegramController::class, 'setWebhook']);
+
+// Payments
+Route::get('/payments/invoice', [PaymentController::class, 'invoice'])->name('payments.invoice');
+Route::post('/payments/invoice', [PaymentController::class, 'invoicePost'])->name('payments.invoice.post');
+Route::get('/payments/callback', [PaymentController::class, 'callback'])->name('payments.callback');
 

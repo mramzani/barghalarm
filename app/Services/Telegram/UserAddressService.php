@@ -72,6 +72,15 @@ class UserAddressService
         }
     }
 
+    /**
+     * Count addresses associated to user by chat id.
+     */
+    public function countUserAddresses(int|string $chatId): int
+    {
+        $user = $this->findUserByChatId($chatId);
+        return $user ? (int) $user->addresses()->count() : 0;
+    }
+
     public function toggleAddressNotify(int|string $chatId, int $addressId): void
     {
         $user = $this->findUserByChatId($chatId);

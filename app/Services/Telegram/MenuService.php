@@ -25,6 +25,9 @@ class MenuService
     {
         return [
             [
+                $this->telegram->buildKeyboardButton('💬 دریافت هشدار با SMS'),
+            ],
+            [
                 $this->telegram->buildKeyboardButton('🗂️ آدرس‌های من'),
                 $this->telegram->buildKeyboardButton('📍️ افزودن آدرس جدید'),
             ],
@@ -40,6 +43,7 @@ class MenuService
         ];
     }
     
+
     public function sendMainMenuWithMessage(int|string $chatId, string $text): void
     {
         $keyboard = $this->buildMainMenuKeyboard();
