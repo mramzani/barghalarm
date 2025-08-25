@@ -23,9 +23,7 @@ class SendBlackoutNotificationsForUser implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public int $userId, public string $date)
-    {
-    }
+    public function __construct(public int $userId, public string $date) {}
 
     /**
      * Execute the job.
@@ -50,42 +48,45 @@ class SendBlackoutNotificationsForUser implements ShouldQueue
 
         $dateFa = (new Verta($this->date))->format('l j F');
 
+        $sections = [];
+
         foreach ($user->addresses as $address) {
             $blackouts = Blackout::query()
                 ->where('address_id', $address->id)
                 ->whereDate('outage_date', $this->date)
                 ->orderBy('outage_start_time')
-                ->get(['outage_start_time', 'outage_end_time']);
+                ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
 
+            $cityName = $address->city ? (string) $address->city->name() : '';
+            $locationLine = '📍 '.trim(($cityName !== '' ? $cityName.' | ' : '').(string) $address->address, ' |');
+
+            $addressSections = [];
             if ($blackouts->isEmpty()) {
-                continue;
+                $addressSections[] = '<blockquote>'.e('✅ امروز برای این آدرس قطعی ثبت نشده است.').'</blockquote>';
+            } else {
+                foreach ($blackouts as $b) {
+                    $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
+                    $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
+                    $addressSections[] = '<blockquote>'.e('⏰ '.$dateFa.' ساعت '.$start.' الی '.$end).'</blockquote>';
+                }
             }
 
-            $cityName = optional($address->city)->name() ?? '';
-            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
+            $section = e($locationLine)."\n\n".implode("\n\n", $addressSections);
 
-            $sections = [];
-            foreach ($blackouts as $blackout) {
-                $start = $blackout->outage_start_time !== null
-                    ? Carbon::parse($blackout->outage_start_time)->format('H:i')
-                    : '—';
-                $end = $blackout->outage_end_time !== null
-                    ? Carbon::parse($blackout->outage_end_time)->format('H:i')
-                    : '—';
-                $sections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
+            if (! empty($sections)) {
+                $sections[] = '🔹🔻🔻🔻🔻🔹';
             }
 
-            $final = '📅 برنامه قطعی (' . $dateFa . '):' . "\n\n"   
-                . e($locationLine) . "\n\n"
-                . implode("\n\n", $sections);
-
-            $telegram->sendMessage([
-                'chat_id' => (int) $user->chat_id,
-                'text' => $final,
-                'parse_mode' => 'HTML',
-            ]);
+            $sections[] = $section;
         }
+
+        $header = '📅 برنامه قطعی امروز ('.$dateFa.'):';
+        $final = $header."\n\n".implode("\n\n", $sections);
+
+        $telegram->sendMessage([
+            'chat_id' => (int) $user->chat_id,
+            'text' => $final,
+            'parse_mode' => 'HTML',
+        ]);
     }
 }
-
-
