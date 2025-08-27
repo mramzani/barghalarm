@@ -119,6 +119,9 @@ use Hekmatinasser\Verta\Verta;
     }
 }); */
 
+Route::get('/',function(){
+    return view('welcome');
+});
 
 Route::post('/telegram/bot', [TelegramController::class, 'handle']);
 Route::get('/info', [TelegramController::class, 'webhookInfo']);
