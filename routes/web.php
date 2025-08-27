@@ -120,6 +120,9 @@ use App\Http\Controllers\PaymentController;
     }
 }); */
 
+Route::get('/',function(){
+    return view('welcome');
+});
 
 Route::post('/telegram/bot', [TelegramController::class, 'handle']);
 Route::get('/info', [TelegramController::class, 'webhookInfo']);
