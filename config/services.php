@@ -49,4 +49,10 @@ return [
         'zarinGate'  => env( 'ZARINPAL_ZARINGATE', false ),
         'sandbox'    => env( 'ZARINPAL_SANDBOX', false ),
     ],
+    'meli_payamak' => [
+        'username' => env('MELI_PAYAMAK_USERNAME',''),
+        'password' => env('MELI_PAYAMAK_PASSWORD',''),
+        'console_key' => env('MELI_PAYAMAK_CONSOLE_KEY',''),
+        'send_from' => env('MELI_PAYAMAK_SEND_FROM',''),
+    ],
 ];

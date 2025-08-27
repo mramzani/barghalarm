@@ -8,6 +8,7 @@ use App\Models\Subscription;
 use App\Services\Billing\SubscriptionBillingService;
 use Illuminate\Support\Carbon;
 use Hekmatinasser\Verta\Verta;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Coordinates Telegram update handling by delegating to smaller services.
@@ -65,6 +66,7 @@ class TelegramUpdateDispatcher
         }
 
         if ($this->telegram->getUpdateType() === TelegramService::CALLBACK_QUERY) {
+            Log::info('Callback Query', ['chat_id' => $chatId, 'text' => $text]);   
             $this->handleCallback($chatId, $text);
         }  
         
@@ -235,7 +237,7 @@ class TelegramUpdateDispatcher
                 'text' => 'ممنون از همراهیتون! 😊 لطفاً پیشنهاد یا گزارش مشکلی که دارید رو تو یه پیام بفرستید. همه پیام‌ها با دقت توسط مدیر بررسی می‌شن! 🌟',
                 'reply_markup' => $replyKeyboard,
             ]);
-        } elseif ($text === '💬 دریافت هشدار با SMS') {
+        } elseif ($text === '💬 دریافت هشدار با SMS' || $text === '/sms_alert') {
             $user = $this->userAddress->findUserByChatId($chatId);
             $uncovered = $user ? $this->billing->getUncoveredAddressIds($user) : [];
             $count = count($uncovered);
@@ -251,33 +253,30 @@ class TelegramUpdateDispatcher
                     'chat_id' => $chatId,
                     'text' => $msg,
                 ]);
+                $this->menu->sendMainMenu($chatId);
                 return;
             }
 
-            $pricePer = SubscriptionBillingService::PRICE_PER_ADDRESS;
-            $monthly = $count * $pricePer;
-            $daily = (int) ceil($monthly / 30);
-            $smsPerDay = 2;
+            // Step 1: Send consent/terms message with accept button
+            $consent = "✅ دوست داری به‌جای اینکه هی تلگرام رو چک کنی، هر روز صبح و ۲۰ دقیقه قبل از قطعی برق، با یه پیامک باخبر بشی؟\n"
+                . "🔹 چون ارسال پیامک یه کم هزینه داره، باید اشتراک VIP بگیری. این اشتراک فقط ماهی ۳۰,۰۰۰ تومن (برای هر آدرس، روزی ۱۰۰۰ تومن)ه که همون هزینه پیامک‌های یه ماهه‌ست.\n"
+                . "چندتا نکته مهم (لطفاً با دقت بخون):\n\n"
+                . "هزینه اشتراک بستگی به تعداد آدرس‌هایی داره که ثبت کردی. اگه آدرس اشتباه یا اضافی وارد کردی، حتماً حذفش کن. چون هزینه اضافی برنمی‌گرده!\n"
+                . "اطلاعات ربات ما هر روز ۴ تا ۶ بار از سامانه شرکت توزیع برق مازندران به‌روزرسانی می‌شه. اگه ساعت قطعی برق اشتباه اعلام بشه، ما مسئولش نیستیم.\n"
+                . "این ربات تا وقتی سامانه شرکت توزیع برق اطلاعات بده کار می‌کنه. اگه دسترسی محدود بشه، ممکنه ربات از کار بیفته.\n"
+                . "تو مرحله بعد، شماره موبایلت رو می‌پرسیم. اگه شماره رو اشتباه وارد کنی، مسئولیت با خودته و هزینه هم برنمی‌گرده.\n"
+                . "با پرداخت و خرید اشتراک، یعنی همه این قوانین رو قبول کردی!\n\n"
+                . "خب، آماده‌ای که باهم شروع کنیم؟ 😊";
 
-            $lines = [];
-            $lines[] = '📬 سرویس «هشدار پیامکی قطعی برق»';
-            $lines[] = '👤 کاربر: ' . $chatId;
-            $lines[] = '📍 آدرس‌های بدون اشتراک: ' . $count;
-            $lines[] = '💵 هزینه ماهانه هر آدرس: ' . number_format($pricePer) . ' تومان';
-            $lines[] = '🧮 جمع ماهانه قابل پرداخت: ' . number_format($monthly) . ' تومان';
-            $lines[] = '📅 معادل روزانه: ' . number_format($daily) . ' تومان | ~' . $smsPerDay . ' پیامک';
-            $textMessage = implode("\n", $lines);
-
-            $invoiceUrl = secure_url('/payments/invoice', ['chat_id' => $chatId]);
-            $buttons = [
+            $consentButtons = [
                 [
-                    $this->telegram->buildInlineKeyboardButton('پرداخت و فعال‌سازی اشتراک', $invoiceUrl, ''),
+                    $this->telegram->buildInlineKeyboardButton('مطالعه کردم و قبول دارم', '', 'SMS_TERMS_OK'),
                 ],
             ];
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => $textMessage,
-                'reply_markup' => $this->telegram->buildInlineKeyBoard($buttons),
+                'text' => $consent,
+                'reply_markup' => $this->telegram->buildInlineKeyBoard($consentButtons),
             ]);
         } elseif ($text === '📜 قوانین و مقررات') {
             $this->telegram->sendMessage([
@@ -342,6 +341,66 @@ class TelegramUpdateDispatcher
 
     protected function handleCallback(int|string $chatId, string $text): void
     {
+        if ($text === 'SMS_TERMS_OK') {
+            $user = $this->userAddress->findUserByChatId($chatId);
+            $uncovered = $user ? $this->billing->getUncoveredAddressIds($user) : [];
+            $count = count($uncovered);
+            if ($count === 0) {
+                $maxEnd = Subscription::query()
+                    ->where('user_id', $user?->id)
+                    ->where('status', 'active')
+                    ->max('ends_on');
+                $endsFa = $maxEnd ? (new Verta(Carbon::parse($maxEnd)))->format('Y/m/d') : '-';
+                $msg = '✅ شما برای تمام آدرس‌های خود اشتراک فعال دارید.' . "\n" . '⏳ اعتبار اشتراک‌ها تا: ' . $endsFa;
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => $msg,
+                ]);
+                return;
+            }
+
+            // Build invoice preview including exact addresses to be covered
+            $addresses = $user?->addresses()->with('city')->whereIn('addresses.id', $uncovered)->get();
+            $addressLines = [];
+            foreach ($addresses ?? [] as $addr) {
+                $cityName = $addr->city ? (string) $addr->city->name() : '';
+                $addressText = (string) ($addr->address ?? '');
+                $addressLines[] = '<blockquote>' . e(trim(($cityName !== '' ? $cityName . ' | ' : '') . $addressText, ' |')) . '</blockquote>';
+            }
+
+            $pricePer = SubscriptionBillingService::PRICE_PER_ADDRESS;
+            $monthly = $count * $pricePer;
+            $daily = (int) ceil($monthly / 30);
+            $smsPerDay = 2;
+
+            $body = [];
+            $body[] = '📍شما در حال خرید اشتراک برای آدرس:';
+            if (!empty($addressLines)) {
+                $body[] = implode("\n", $addressLines);
+            }
+            $body[] = '📬 سرویس «هشدار پیامکی قطعی برق»';
+            $body[] = '👤 کاربر: ' . $chatId;
+            $body[] = '📍 آدرس‌های بدون اشتراک: ' . $count;
+            $body[] = '💵 هزینه ماهانه هر آدرس: ' . number_format($pricePer) . ' تومان';
+            $body[] = '🧮 جمع ماهانه قابل پرداخت: ' . number_format($monthly) . ' تومان';
+            $body[] = '📅 معادل روزانه: ' . number_format($daily) . ' تومان | ~' . $smsPerDay . ' پیامک';
+            $preview = implode("\n", $body);
+
+            $invoiceUrl = route('payments.invoice', ['chat_id' => $chatId]);
+            //$invoiceUrl = route('payments.invoice', ['chat_id' => $chatId]);
+            $buttons = [
+                [
+                    $this->telegram->buildInlineKeyboardButton('ادامه و ورود به پرداخت', $invoiceUrl, ''),
+                ],
+            ];
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => $preview . "\n\n" . 'جهت خرید اشتراک روی دکمه‌ی زیر کلیک کنید👇👇👇',
+                'reply_markup' => $this->telegram->buildInlineKeyBoard($buttons),
+                'parse_mode' => 'HTML',
+            ]);
+            return;
+        }
         if ($text === 'HELP') {
             $message = "کافیست ربات را با کلیک روی این لینک شروع کنید و سپس /start را بزنید\nhttps://t.me/mazandbarghalertbot\nهمچنین شما میتونید همزمان چند آدرس را در ربات ثبت کنید تا همزمان قطعی منزل/محل کار را داشته باشید.";
             $this->telegram->answerCallbackQuery([

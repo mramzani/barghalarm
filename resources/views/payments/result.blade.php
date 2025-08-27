@@ -43,7 +43,6 @@
                     <p>در صورت کسر وجه، طی حداکثر ۷۲ ساعت بازگشت داده می‌شود.</p>
                 </div>
                 <div class="mt-6 flex gap-3">
-                    <a href="/" class="inline-flex items-center justify-center flex-1 rounded-lg bg-gray-100 text-gray-800 py-2.5 hover:bg-gray-200 transition">بازگشت به سایت</a>
                     <a href="https://t.me/{{ config('services.telegram.bot_username') }}" class="inline-flex items-center justify-center flex-1 rounded-lg bg-blue-600 text-white py-2.5 hover:bg-blue-700 transition">بازگشت به ربات</a>
                 </div>
             @endif

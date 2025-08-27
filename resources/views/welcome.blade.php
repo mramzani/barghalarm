@@ -9,65 +9,88 @@
     <link rel="preconnect" href="//v1.fontapi.ir">
     <link href="https://v1.fontapi.ir/css/Estedad" rel="stylesheet">
     @vite(['resources/css/app.css','resources/js/app.js'])
+    {{-- seo tags --}}
+    <meta name="description" content="اطلاع‌رسانی قطعی برق مازندران">
+    <meta name="keywords" content="مازندبرق, اطلاع‌رسانی قطعی برق, اطلاع‌رسانی قطعی برق مازندران, اطلاع‌رسانی قطعی برق شهرها و محله‌های استان مازندران">
+    <meta name="author" content="مازندبرق">
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    <meta name="google" content="notranslate">
     </head>
     <body class="antialiased">
-        <div class="mx-auto max-w-7xl px-4 py-8">
-            <div class="bg-white shadow-sm rounded-2xl border border-gray-200 overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 class="text-xl font-bold text-gray-900">نتایج خاموشی</h1>
-                        <p class="mt-1 text-sm text-gray-500">نمایش نتایج بر اساس فیلترهای انتخاب شده</p>
+        <div class="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 text-white">
+            <div class="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12">
+                <header class="flex items-center justify-between">
+                    <a href="/" class="flex items-center gap-2">
+                        <span class="text-2xl font-black tracking-tight">مازندبرق</span>
+                    </a>
+                    <nav class="hidden md:flex items-center gap-6 text-sm">
+                        <a href="#features" class="text-slate-300 hover:text-white transition-colors">ویژگی‌ها</a>
+                        <a href="{{ route('payments.invoice') }}" class="text-slate-300 hover:text-white transition-colors">خرید اشتراک</a>
+                    </nav>
+                </header>
+
+                <main>
+                    <section class="mt-14 sm:mt-20 text-center">
+                        <h1 class="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.2]">
+                            اطلاع‌رسانی قطعی برق مازندران
+                        </h1>
+                        <p class="mt-6 text-base sm:text-lg md:text-xl text-slate-300 max-w-3xl mx-auto leading-8">
+                            با مازندبرق، اعلان‌های فوری و دقیق درباره برنامه‌های قطعی برق شهرها و محله‌های استان مازندران را دریافت کنید. ساده، سریع و همیشه در کنار شما.
+                        </p>
+                        <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+                            <a href="https://t.me/rinonotify_bot" class="inline-flex items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 font-semibold shadow-lg shadow-emerald-600/20 transition-colors">
+                                استفاده از مازندبرق
+                            </a>
+                            <a href="#features" class="inline-flex items-center justify-center rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 px-6 py-3 font-semibold transition-colors">
+                                آشنایی با قابلیت‌ها
+                            </a>
+                        </div>
+                    </section>
+
+                    <section id="features" class="mt-20 sm:mt-28 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                            <div class="text-3xl">⚡</div>
+                            <h3 class="mt-3 text-xl font-bold">اعلان‌های فوری</h3>
+                            <p class="mt-2 text-slate-300 text-sm leading-7">
+                                دریافت نوتیفیکیشن‌های لحظه‌ای درباره زمان‌بندی قطعی‌ها تا همیشه یک قدم جلوتر باشید.
+                            </p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                            <div class="text-3xl">📍</div>
+                            <h3 class="mt-3 text-xl font-bold">پوشش محلی دقیق</h3>
+                            <p class="mt-2 text-slate-300 text-sm leading-7">
+                                انتخاب شهر و محله برای دریافت اطلاعات دقیق متناسب با موقعیت شما.
+                            </p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                            <div class="text-3xl">🔒</div>
+                            <h3 class="mt-3 text-xl font-bold">امن و قابل اعتماد</h3>
+                            <p class="mt-2 text-slate-300 text-sm leading-7">
+                                حفظ حریم خصوصی و امنیت داده‌ها با استانداردهای روز.
+                            </p>
+                        </div>
+                        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+                            <div class="text-3xl">🧾</div>
+                            <h3 class="mt-3 text-xl font-bold">اشتراک ساده</h3>
+                            <p class="mt-2 text-slate-300 text-sm leading-7">
+                                فرآیند خرید اشتراک شفاف و سریع برای دسترسی کامل به امکانات.
+                            </p>
+                        </div>
+                    </section>
+                </main>
+
+                <section class="mt-16 sm:mt-24">
+                    <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 flex items-center justify-center">
+                        <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=406024&Code=7BHaWBkibIXgZ9jmJ5xyiXqnE5hcrDCm'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=406024&Code=7BHaWBkibIXgZ9jmJ5xyiXqnE5hcrDCm' alt='' style='cursor:pointer' code='7BHaWBkibIXgZ9jmJ5xyiXqnE5hcrDCm'></a>
                     </div>
-                    <div class="flex flex-wrap gap-2 text-xs">
-                        <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-blue-700 border border-blue-200">
-                            از: <?php echo htmlspecialchars($from, ENT_QUOTES, 'UTF-8'); ?>
-                        </span>
-                        <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-indigo-700 border border-indigo-200">
-                            تا: <?php echo htmlspecialchars($to, ENT_QUOTES, 'UTF-8'); ?>
-                        </span>
-                        <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 border border-emerald-200">
-                        
-                            منطقه: <?php echo htmlspecialchars($area, ENT_QUOTES, 'UTF-8'); ?>
-                        </span>
-                    </div>
-                </div>
-    
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm">
-                        <?php if (!empty($headers)) { ?>
-                        <thead class="bg-gray-50 text-gray-700">
-                            <tr>
-                                <?php foreach ($headers as $h): ?>
-                                <th class="px-4 py-3 text-center font-semibold whitespace-nowrap border-b border-gray-200"><?php echo htmlspecialchars($h, ENT_QUOTES, 'UTF-8'); ?></th>
-                                <?php endforeach; ?>
-                            </tr>
-                        </thead>
-                        <?php } ?>
-                        <tbody class="divide-y divide-gray-100">
-                            <?php if (!empty($rows)): ?>
-                                <?php foreach ($rows as $r): ?>
-                                <tr class="hover:bg-gray-50">
-                                    <?php foreach ($r as $c): ?>
-                                    <td class="px-4 py-3 text-gray-800 whitespace-pre-wrap align-top"><?php echo htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <?php endforeach; ?>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td class="px-6 py-10 text-center text-gray-500" colspan="<?php echo max(1, count($headers)); ?>">
-                                        <span class="block text-base">موردی برای نمایش وجود ندارد</span>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php if (!empty($rows)) { ?>
-                <div class="px-6 py-4 border-t border-gray-200 text-xs text-gray-500">
-                    تعداد ردیف‌ها: <span class="font-medium text-gray-700"><?php echo count($rows); ?></span>
-                </div>
-                <?php } ?>
+                </section>
+
+                <footer class="mt-8 text-center text-slate-400 text-xs sm:text-sm">
+                    ساخته‌شده با ❤️ برای اطلاع‌رسانی بهتر به شهروندان
+                </footer>
             </div>
         </div>
     </body>
 </html>
+    

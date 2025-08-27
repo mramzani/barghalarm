@@ -35,7 +35,7 @@
 
             <div>
                 <label class="block text-sm mb-1">شماره موبایل (الزامی)</label>
-                <input type="tel" name="mobile" value="{{ old('mobile', $user->mobile) }}" dir="ltr" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="مثال: 0912xxxxxxx یا +98912xxxxxxx" required>
+                <input type="tel" name="mobile" value="{{ old('mobile') }}" dir="ltr" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="مثلا 09123456789" required>
                 @error('mobile')
                     <div class="mt-1 text-sm text-red-600">{{ $message }}</div>
                 @enderror
