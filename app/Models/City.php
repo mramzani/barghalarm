@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class City extends Model
 {
@@ -23,9 +24,11 @@ class City extends Model
         return $this->hasMany(Address::class);
     }
 
-    public function name(): string
+    public function name(): Attribute
     {
-        return $this->name_fa;
+        return Attribute::get(function (): ?string {
+            return $this->name_fa ?? $this->name_en;
+        });
     }
 
     public function blackouts(): HasMany

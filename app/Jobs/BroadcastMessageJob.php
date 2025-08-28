@@ -32,92 +32,37 @@ class BroadcastMessageJob implements ShouldQueue
             return;
         }
 
-        $query = User::query()->whereNotNull('chat_id');
+        // Gather all user IDs to broadcast
+        $userIds = [];
+        User::query()
+            ->whereNotNull('chat_id')
+            ->orderBy('id')
+            ->chunk(1000, function ($users) use (&$userIds) {
+                foreach ($users as $user) {
+                    $userIds[] = (int) $user->id;
+                }
+            });
 
-        $total = (int) $query->count();
+        $total = count($userIds);
+        $batchesTotal = (int) ceil($total / 50);
+
         $progress['total'] = $total;
         $progress['processing'] = 0;
-        $progress['processed'] = (int) ($progress['processed'] ?? 0);
-        $progress['success'] = (int) ($progress['success'] ?? 0);
-        $progress['failed'] = (int) ($progress['failed'] ?? 0);
-        $progress['remaining'] = max(0, $total - $progress['processed']);
+        $progress['processed'] = 0;
+        $progress['success'] = 0;
+        $progress['failed'] = 0;
+        $progress['remaining'] = $total;
+        $progress['batches_total'] = $batchesTotal;
+        $progress['batches_completed'] = 0;
+        $progress['finalized'] = false;
         Cache::put($cacheKey, $progress, now()->addHour());
         $this->updateProgressMessage($telegram, $adminChatId, $progressMessageId, $progress);
 
-        $processedSinceLastUpdate = 0;
-
-        $query->orderBy('id')->chunk(50, function ($users) use (&$progress, $cacheKey, $telegram, $adminChatId, $progressMessageId, &$processedSinceLastUpdate, $text) {
-            if ((bool) ($progress['cancelled'] ?? false)) {
-                return false; // stop further chunks
-            }
-
-            $batchTotal = count($users);
-            $progress['processing'] = $batchTotal;
-            Cache::put($cacheKey, $progress, now()->addHour());
-            $this->updateProgressMessage($telegram, $adminChatId, $progressMessageId, $progress);
-
-            foreach ($users as $user) {
-                if ((bool) ($progress['cancelled'] ?? false)) {
-                    break;
-                }
-
-                $chatId = (string) $user->chat_id;
-                if ($chatId === '') {
-                    $progress['processed']++;
-                    $progress['failed']++;
-                    $processedSinceLastUpdate++;
-                    continue;
-                }
-
-                try {
-                    $reply = $telegram->sendMessage([
-                        'chat_id' => $chatId,
-                        'text' => $text,
-                    ]);
-                    $ok = is_array($reply) ? (bool) ($reply['ok'] ?? false) : false;
-                    if ($ok) {
-                        $progress['success']++;
-                    } else {
-                        $progress['failed']++;
-                    }
-                } catch (\Throwable $e) {
-                    $progress['failed']++;
-                }
-
-                $progress['processed']++;
-                $progress['remaining'] = max(0, $progress['total'] - $progress['processed']);
-                $processedSinceLastUpdate++;
-
-                // Gentle rate limit to avoid Telegram flood (10 msgs/sec)
-                usleep(100000);
-
-                // Update admin every 5 messages to reduce API load
-                if ($processedSinceLastUpdate >= 5) {
-                    Cache::put($cacheKey, $progress, now()->addHour());
-                    $this->updateProgressMessage($telegram, $adminChatId, $progressMessageId, $progress);
-                    $processedSinceLastUpdate = 0;
-                }
-            }
-
-            // End of batch update
-            $progress['processing'] = 0;
-            Cache::put($cacheKey, $progress, now()->addHour());
-            $this->updateProgressMessage($telegram, $adminChatId, $progressMessageId, $progress);
-        });
-
-        // Finished: send completion message and return to admin menu
-        $buttons = [];
-        $telegram->editMessageText([
-            'chat_id' => $adminChatId,
-            'message_id' => $progressMessageId,
-            'text' => $this->renderReport($progress) . "\n\n" . '✅ ارسال همگانی به پایان رسید.',
-        ]);
-        // Remove any lingering reply keyboards explicitly
-        $telegram->sendMessage([
-            'chat_id' => $adminChatId,
-            'text' => ' ',
-            'reply_markup' => $telegram->buildKeyBoardHide(false),
-        ]);
+        // Dispatch a job per 50 users
+        for ($i = 0; $i < $total; $i += 50) {
+            $batch = array_slice($userIds, $i, 50);
+            \App\Jobs\BroadcastBatchJob::dispatch($this->broadcastId, $batch)->onQueue('default');
+        }
     }
 
     private function updateProgressMessage(TelegramService $telegram, string $adminChatId, int $messageId, array $progress): void
@@ -144,6 +89,8 @@ class BroadcastMessageJob implements ShouldQueue
         $success = (int) ($stats['success'] ?? 0);
         $failed = (int) ($stats['failed'] ?? 0);
         $remaining = (int) ($stats['remaining'] ?? max(0, $total - $processed));
+        $batchesTotal = (int) ($stats['batches_total'] ?? 0);
+        $batchesCompleted = (int) ($stats['batches_completed'] ?? 0);
 
         $lines = [];
         $lines[] = '📣 گزارش ارسال همگانی';
@@ -154,6 +101,9 @@ class BroadcastMessageJob implements ShouldQueue
         $lines[] = '✅ موفق: ' . number_format($success);
         $lines[] = '❌ ناموفق: ' . number_format($failed);
         $lines[] = '🧮 باقی‌مانده: ' . number_format($remaining);
+        if ($batchesTotal > 0) {
+            $lines[] = '🧰 دسته‌ها: ' . number_format($batchesCompleted) . ' / ' . number_format($batchesTotal);
+        }
 
         if ((bool) ($stats['cancelled'] ?? false)) {
             $lines[] = '';

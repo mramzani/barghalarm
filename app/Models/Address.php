@@ -39,7 +39,12 @@ class Address extends Model
 
     public function fullAddress(): string
     {
-        return  $this->city->name . ' | ' . $this->address;
+        $cityName = optional($this->city)->name;
+        if (is_string($cityName) && trim($cityName) !== '') {
+            return $cityName . ' | ' . (string) $this->address;
+        }
+
+        return (string) $this->address;
     }
 
     public function getAliasAddressAttribute(): string
