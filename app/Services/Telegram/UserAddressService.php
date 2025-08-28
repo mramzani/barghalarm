@@ -99,7 +99,7 @@ class UserAddressService
         if (!$address) {
             return ['✅ آدرس شما با موفقیت اضافه شد.', null];
         }
-        $cityName = $address->city ? $address->city->name() : '';
+        $cityName = (string) ($address->city?->name ?? '');
         $msg = '✅ آدرس شما با موفقیت اضافه شد:' . "\n" . $cityName . "\n" . $address->address . "\n\n" . '🔔 از این پس در صورت وجود قطعی برق در این آدرس،  به شما اطلاع داده خواهد شد.';
 
         return [$msg, $cityName];

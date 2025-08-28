@@ -208,7 +208,9 @@ class SmsSubscriptionFlowService
             return;
         }
 
-        $cityName = $address->city ? (string) $address->city->name() : '';
+        $cityName = (string) ($address->city?->name ?? '');
+        $cityName = (string) ($address->city?->name ?? '');
+        $cityName = (string) ($address->city?->name ?? '');
         $pivotAlias = is_string($address->pivot->name ?? null) ? trim((string) $address->pivot->name) : '';
         $label = $pivotAlias !== '' ? $pivotAlias : (string) ($address->address ?? '');
         $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');

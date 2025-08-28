@@ -36,7 +36,7 @@ class BlackoutNotificationService
         $dateFa = $v->format('l j F');
 
         $address = Address::with('city')->find($addressId);
-        $cityName = $address && $address->city ? (string) $address->city->name() : '';
+        $cityName = (string) ($address?->city?->name ?? '');
         $label = $address ? (string) ($address->address ?? '') : '';
         $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 
@@ -82,7 +82,7 @@ class BlackoutNotificationService
                 ->orderBy('outage_start_time')
                 ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
 
-            $cityName = $address->city ? $address->city->name() : '';
+            $cityName = (string) ($address->city?->name ?? '');
             $label = (string) ($address->alias_address ?? $address->address ?? '');
             $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 
@@ -140,7 +140,7 @@ class BlackoutNotificationService
                 ->orderBy('outage_start_time')
                 ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
 
-            $cityName = $address->city ? $address->city->name() : '';
+            $cityName = (string) ($address->city?->name ?? '');
             $label = (string) ($address->alias_address ?? $address->address ?? '');
             $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 

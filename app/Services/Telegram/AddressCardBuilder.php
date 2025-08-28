@@ -30,7 +30,7 @@ class AddressCardBuilder
         }
 
         $alias = $address->pivot->name ?? null;
-        $cityName = $address->city ? '📍 ' . $address->city->name() : '';
+        $cityName = $address->city ? '📍 ' . (string) ($address->city->name ?? '') : '';
         $pivotAlias = is_string($address->pivot->name ?? null) ? trim((string) $address->pivot->name) : '';
         $titleLine = $alias ? '📌 نام محل: ' . $alias . "\n" : '';
         $active = (bool) ($address->pivot->is_active ?? true);

@@ -601,7 +601,7 @@ class TelegramUpdateDispatcher
             $link = 'https://t.me/' . $botUsername . '?start=add-' . $addressId;
 
             $address = Address::with('city')->find($addressId);
-            $cityName = $address && $address->city ? (string) $address->city->name() : '';
+            $cityName = (string) (($address && $address->city) ? ($address->city->name ?? '') : '');
             $addressText = $address ? (string) ($address->address ?? '') : '';
             $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $addressText, ' |');
 
