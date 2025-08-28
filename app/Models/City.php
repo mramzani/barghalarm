@@ -24,11 +24,9 @@ class City extends Model
         return $this->hasMany(Address::class);
     }
 
-    public function name(): Attribute
+    public function name(): string
     {
-        return Attribute::get(function (): ?string {
-            return $this->name_fa ?? $this->name_en;
-        });
+        return $this->name_fa;
     }
 
     public function blackouts(): HasMany
