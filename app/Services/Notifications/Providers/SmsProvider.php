@@ -40,13 +40,15 @@ class SmsProvider implements Provider
      */
     public function send()
     {
-        Log::info('send sms',['user'=>json_encode($this->user),'args'=>json_encode($this->args),'pattern'=>$this->pattern]);
-       // $response = $this->sendWithConsole($this->args);
+       // Log::info('send sms',['user'=>json_encode($this->user),'args'=>json_encode($this->args),'pattern'=>$this->pattern]);
+       $response = $this->sendWithConsole($this->args);
 
-        // if ($response->status() !== 200) {
-        //     Log::warning('Error in send message with code: ' . $response->body());
-        //     throw new Exception('error in send message please check log file');
-        // }
+       Log::info('send sms response',['response'=> $response->json()]);
+
+        if ($response->status() !== 200) {
+            Log::warning('Error in send message with code: ' . $response->body());
+            throw new Exception('error in send message please check log file');
+        }
         return null;
     }
 

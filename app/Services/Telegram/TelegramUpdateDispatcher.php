@@ -1,13 +1,11 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Services\Telegram;
 
 use App\Models\Address;
-use App\Models\Blackout;
-use App\Models\Subscription;
+use App\Models\User;
 use App\Services\Billing\SubscriptionBillingService;
-use Illuminate\Support\Carbon;
-use Hekmatinasser\Verta\Verta;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -24,7 +22,64 @@ class TelegramUpdateDispatcher
         public AddressFlowService $addressFlow,
         public UserAddressService $userAddress,
         public SubscriptionBillingService $billing,
+        public SmsSubscriptionFlowService $smsFlow,
+        public BroadcastService $broadcast,
+        public FeedbackService $feedback,
+        public BlackoutNotificationService $blackouts,
+        public AddressCardBuilder $addressCard,
     ) {
+    }
+
+    /**
+     * Send not allowed message and fallback to main menu.
+     */
+    protected function denyAdminAndReturn(int|string $chatId): void
+    {
+        $this->state->clear($chatId);
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => '⛔️ این دستور برای شما مجاز نیست',
+        ]);
+        $this->menu->sendMainMenu($chatId);
+    }
+
+    /**
+     * Centralized purchase cancel UX.
+     */
+    protected function cancelPurchase(int|string $chatId): void
+    {
+        $this->state->clear($chatId);
+        $this->menu->hideReplyKeyboard($chatId);
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => 'خرید اشتراک پیامکی لغو شد. برای شروع دوباره، «💬 دریافت هشدار با SMS» را انتخاب کنید.',
+        ]);
+        $this->menu->sendMainMenu($chatId);
+    }
+
+    /**
+     * Enter SMS naming flow if there are uncovered addresses without names; otherwise go invoice.
+     */
+    protected function proceedAfterSmsConsent(int|string $chatId): void
+    {
+        $this->smsFlow->proceedAfterConsent($chatId);
+    }
+
+    /**
+     * Show the SMS naming wizard for addresses missing a user-defined name.
+     */
+    protected function showSmsNamingWizard(int|string $chatId, $needsNames): void
+    {
+        // Deprecated in simplified linear flow (kept for backward compatibility if called directly)
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => 'برای ارسال پیامک کوتاه، باید برای آدرس‌ها نام کوتاه تعیین شود. لطفاً دستور را دوباره اجرا کنید.',
+        ]);
+    }
+
+    protected function promptNextSmsName(int|string $chatId): void
+    {
+        $this->smsFlow->promptNextSmsName($chatId);
     }
 
     public function dispatch(): void
@@ -121,6 +176,32 @@ class TelegramUpdateDispatcher
     {
         $state = $this->state->get($chatId);
 
+        // Global cancel for purchase after invoice (reply keyboard)
+        if ($text === 'انصراف از خرید') {
+            $this->smsFlow->cancelPurchase($chatId);
+            return;
+        }
+
+        // Handle broadcast confirm step (admin) - allow cancel via reply button
+        if (array_key_exists('step', $state) && $state['step'] === 'await_broadcast_confirm') {
+            if ($text === 'انصراف') {
+                $this->state->clear($chatId);
+                $this->menu->hideReplyKeyboard($chatId);
+                $this->menu->sendAdminMenu($chatId);
+                return;
+            }
+        }
+
+        // Handle broadcast text input (admin only)
+        if (array_key_exists('step', $state) && $state['step'] === 'await_broadcast_text') {
+            if (!$this->broadcast->isAdmin($chatId)) {
+                $this->denyAdminAndReturn($chatId);
+                return;
+            }
+            $this->broadcast->handleText($chatId, $text);
+            return;
+        }
+
         if (array_key_exists('step', $state) && $state['step'] === 'await_rename' && array_key_exists('address_id', $state)) {
             if ($text === 'انصراف') {
                 $this->state->clear($chatId);
@@ -146,9 +227,16 @@ class TelegramUpdateDispatcher
             return;
         }
 
+        // Linear SMS naming flow
+        if (array_key_exists('step', $state) && $state['step'] === 'sms_name_flow' && array_key_exists('queue', $state) && array_key_exists('pos', $state)) {
+            $this->smsFlow->handleNameFlowText($chatId, $state, $text);
+            return;
+        }
+
         if (array_key_exists('step', $state) && $state['step'] === 'await_keyword' && array_key_exists('city_id', $state)) {
             // During keyword step, ignore main menu reply buttons and re-prompt
             $mainMenuButtons = [
+                '💬 دریافت هشدار با SMS',
                 '🗂️ آدرس‌های من',
                 '📍️ افزودن آدرس جدید',
                 '🔴 قطعی‌های امروز',
@@ -156,6 +244,7 @@ class TelegramUpdateDispatcher
                 '💡 درباره ما',
                 '📨 پیشنهاد یا گزارش مشکل',
                 '📜 قوانین و مقررات',
+                '👤 مدیریت ربات',
             ];
             if (in_array($text, $mainMenuButtons, true)) {
                 $this->addressFlow->promptForKeyword($chatId, (int) $state['city_id']);
@@ -169,47 +258,10 @@ class TelegramUpdateDispatcher
         // Handle feedback flow
         if (array_key_exists('step', $state) && $state['step'] === 'await_feedback') {
             if ($text === 'انصراف') {
-                $this->state->clear($chatId);
-                $this->telegram->sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => '❌ ارسال پیشنهاد/گزارش لغو شد.',
-                ]);
-                $this->menu->hideReplyKeyboard($chatId);
-                $this->menu->sendMainMenu($chatId);
+                $this->feedback->cancel($chatId);
                 return;
             }
-
-            $user = $this->userAddress->findUserByChatId($chatId);
-            $firstName = $user ? (string) ($user->first_name ?? '') : (string) ($this->telegram->FirstName() ?? '');
-            $lastName = $user ? (string) ($user->last_name ?? '') : (string) ($this->telegram->LastName() ?? '');
-            $username = (string) ($this->telegram->Username() ?? '');
-            $mobile = $user ? (string) ($user->mobile ?? '') : '-';
-
-            $name = trim(($firstName . ' ' . $lastName)) ?: '-';
-            $usernameLine = $username !== '' ? '@' . $username : '-';
-
-            $adminChatId = (string) config('services.telegram.admin_chat_id', '');
-            if ($adminChatId !== '') {
-                $adminMessage = "📬 پیام جدید از کاربر\n\n"
-                    . '👤 نام: ' . $name . "\n"
-                    . '🆔 ChatID: ' . $chatId . "\n"
-                    . '🏷️ Username: ' . $usernameLine . "\n"
-                    . '📱 موبایل: ' . $mobile . "\n\n"
-                    . "متن:\n" . $text;
-
-                $this->telegram->sendMessage([
-                    'chat_id' => $adminChatId,
-                    'text' => $adminMessage,
-                ]);
-            }
-
-            $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => '✅ پیام شما برای مدیر ارسال شد. ممنون از همراهی‌تون!',
-            ]);
-            $this->state->clear($chatId);
-            $this->menu->hideReplyKeyboard($chatId);
-            $this->menu->sendMainMenu($chatId);
+            $this->feedback->handle($chatId, $text);
             return;
         }
 
@@ -221,72 +273,59 @@ class TelegramUpdateDispatcher
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => '👨‍💻درباره‌ی ما:
-تو این شرایط سخت ندونستن زمان قطعی برق باعث شده خیلی از کسب و کار ها، جلسات، برنامه ریزی ها و قرار های کاری به هم بریزه. خب ما کاری از دستمون در مورد قطعی برق بر نمیاد ولی حداقل تلاش کردیم خدمت کوچیکی به هم استانی های عزیز کرده باشیم.',
+تو این شرایط سخت ندونستن زمان قطعی برق باعث شده خیلی از کسب و کار ها، جلسات، برنامه ریزی ها و قرار های کاری به هم بریزه. خب ما کاری از دستمون در مورد قطعی برق برنمیاد ولی حداقل تلاش کردیم خدمت کوچیکی به هم استانی های عزیز کرده باشیم.',
                 'parse_mode' => 'HTML',
             ]);
         } elseif ($text === '📨 پیشنهاد یا گزارش مشکل' || $text === '/feedback') {
-            $this->state->set($chatId, ['step' => 'await_feedback']);
-            $keyboard = [
-                [
-                    $this->telegram->buildKeyboardButton('انصراف'),
-                ],
-            ];
-            $replyKeyboard = $this->telegram->buildKeyBoard($keyboard, true, true, true);
-            $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => "ممنون از همراهی‌تون! 😊\nلطفاً پیشنهاد یا گزارش مشکل خود را در یک پیام ارسال کنید.\n\nلطفاً درباره موارد زیر پیام ارسال نکنید:\n1. اگر ساعتی برای قطعی اعلام شده اما برق قطع نشده است.\n2. اگر ساعتی برای قطعی اعلام نشده اما برق قطع شده است.\nما مسئول این موارد نیستیم. 🙏🏻\n\nهمه پیام‌ها با دقت توسط مدیر بررسی می‌شوند. 🌟",
-                'reply_markup' => $replyKeyboard,
-            ]);
-        } elseif ($text === '💬 دریافت هشدار با SMS' || $text === '/sms_alert') {
-            $user = $this->userAddress->findUserByChatId($chatId);
-            $uncovered = $user ? $this->billing->getUncoveredAddressIds($user) : [];
-            $count = count($uncovered);
-
-            if ($count === 0) {
-                $maxEnd = Subscription::query()
-                    ->where('user_id', $user?->id)
-                    ->where('status', 'active')
-                    ->max('ends_on');
-                $endsFa = $maxEnd ? (new Verta(Carbon::parse($maxEnd)))->format('Y/m/d') : '-';
-                $msg = '✅ شما برای تمام آدرس‌های خود اشتراک فعال دارید.' . "\n" . '⏳ اعتبار اشتراک‌ها تا: ' . $endsFa;
+            $this->feedback->start($chatId);
+        } elseif ($text === '👤 مدیریت ربات') {
+            if ($this->menu->isAdmin($chatId)) {
+                $this->menu->sendAdminMenu($chatId);
+            } else {
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => $msg,
+                    'text' => '⛔️ این دستور برای شما مجاز نیست',
                 ]);
                 $this->menu->sendMainMenu($chatId);
+            }
+        } elseif ($text === '▶️ پیام همگانی') {
+            if (!$this->broadcast->isAdmin($chatId)) {
+                $this->denyAdminAndReturn($chatId);
+                return;
+            }
+            $this->broadcast->startCompose($chatId);
+            return;
+        } elseif ($text === '🙍‍♂️ آمار کاربران') {
+            if (!$this->broadcast->isAdmin($chatId)) {
+                $this->denyAdminAndReturn($chatId);
                 return;
             }
 
-            // Step 1: Send consent/terms message with accept button
-            $consent = "✅ دوست داری به‌جای اینکه هی تلگرام رو چک کنی، هر روز صبح و ۲۰ دقیقه قبل از قطعی برق، با یه پیامک باخبر بشی؟\n"
-                . "🔹 چون ارسال پیامک یه کم هزینه داره، باید اشتراک VIP بگیری. این اشتراک فقط ماهی ۳۰,۰۰۰ تومن (برای هر آدرس، روزی ۱۰۰۰ تومن)ه که همون هزینه پیامک‌های یه ماهه‌ست.\n"
-                . "چندتا نکته مهم (لطفاً با دقت بخون):\n\n"
-                . "هزینه اشتراک بستگی به تعداد آدرس‌هایی داره که ثبت کردی. اگه آدرس اشتباه یا اضافی وارد کردی، حتماً حذفش کن. چون هزینه اضافی برنمی‌گرده!\n"
-                . "اطلاعات ربات ما هر روز ۴ تا ۶ بار از سامانه شرکت توزیع برق مازندران به‌روزرسانی می‌شه. اگه ساعت قطعی برق اشتباه اعلام بشه، ما مسئولش نیستیم.\n"
-                . "این ربات تا وقتی سامانه شرکت توزیع برق اطلاعات بده کار می‌کنه. اگه دسترسی محدود بشه، ممکنه ربات از کار بیفته.\n"
-                . "تو مرحله بعد، شماره موبایلت رو می‌پرسیم. اگه شماره رو اشتباه وارد کنی، مسئولیت با خودته و هزینه هم برنمی‌گرده.\n"
-                . "با پرداخت و خرید اشتراک، یعنی همه این قوانین رو قبول کردی!\n\n"
-                . "خب، آماده‌ای که باهم شروع کنیم؟ 😊";
+            $totalUsers = (int) User::query()->count();
+            $activeUsers = (int) User::query()->where('is_active', true)->count();
 
-            $consentButtons = [
-                [
-                    $this->telegram->buildInlineKeyboardButton('مطالعه کردم و قبول دارم', '', 'SMS_TERMS_OK'),
-                ],
-            ];
+            $msg = '👥 آمار کاربران' . "\n\n"
+                . '🔢 مجموع کاربران: ' . number_format($totalUsers) . "\n"
+                . '✅ کاربران فعال: ' . number_format($activeUsers);
+
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => $consent,
-                'reply_markup' => $this->telegram->buildInlineKeyBoard($consentButtons),
+                'text' => $msg,
             ]);
+            $this->menu->sendAdminMenu($chatId);
+        } elseif ($text === '↩️ بازگشت به منو اصلی') {
+            $this->menu->sendMainMenu($chatId);
+        } elseif ($text === '💬 دریافت هشدار با SMS' || $text === '/sms_alert') {
+            $this->smsFlow->beginPurchase($chatId);
         } elseif ($text === '📜 قوانین و مقررات') {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'در حال حاضر قوانین و مقررات وجود ندارد',
             ]);
         } elseif ($text === '🔴 قطعی‌های امروز') {
-            $this->notifyTodaysBlackoutsForAllAddresses($chatId);
+            $this->blackouts->notifyTodayForAllAddresses($chatId);
         } elseif ($text === '📆 قطعی‌های فردا') {    
-            $this->notifyTomorrowBlackoutsForAllAddresses($chatId);
+            $this->blackouts->notifyTomorrowForAllAddresses($chatId);
         } elseif ($text === '🔴 وضعیت قطعی‌ها' || $text === 'آپدیت ها') {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
@@ -294,7 +333,7 @@ class TelegramUpdateDispatcher
                 'parse_mode' => 'HTML',
             ]);
         }else{
-            $text = 'عزیزم دستوری که فرستادی ربات نمیفهمه. '."\n".'باید از دکمه‌های پایین استفاده کنی 😉' . "\n\n" . '👇👇👇';
+            $text = 'عزیزم دستوری که فرستادی ربات نمیفهمه. ' ."\n".'باید از دکمه‌های پایین استفاده کنی 😉' . "\n\n" . '👇👇👇';
             $this->menu->sendMainMenuWithMessage($chatId, $text);
         }
     }
@@ -341,64 +380,50 @@ class TelegramUpdateDispatcher
 
     protected function handleCallback(int|string $chatId, string $text): void
     {
-        if ($text === 'SMS_TERMS_OK') {
-            $user = $this->userAddress->findUserByChatId($chatId);
-            $uncovered = $user ? $this->billing->getUncoveredAddressIds($user) : [];
-            $count = count($uncovered);
-            if ($count === 0) {
-                $maxEnd = Subscription::query()
-                    ->where('user_id', $user?->id)
-                    ->where('status', 'active')
-                    ->max('ends_on');
-                $endsFa = $maxEnd ? (new Verta(Carbon::parse($maxEnd)))->format('Y/m/d') : '-';
-                $msg = '✅ شما برای تمام آدرس‌های خود اشتراک فعال دارید.' . "\n" . '⏳ اعتبار اشتراک‌ها تا: ' . $endsFa;
-                $this->telegram->sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => $msg,
-                ]);
+        // Broadcast confirmation
+        if ($text === 'BROADCAST_CONFIRM') {
+            if (!$this->broadcast->isAdmin($chatId)) {
                 return;
             }
-
-            // Build invoice preview including exact addresses to be covered
-            $addresses = $user?->addresses()->with('city')->whereIn('addresses.id', $uncovered)->get();
-            $addressLines = [];
-            foreach ($addresses ?? [] as $addr) {
-                $cityName = $addr->city ? (string) $addr->city->name() : '';
-                $addressText = (string) ($addr->address ?? '');
-                $addressLines[] = '<blockquote>' . e(trim(($cityName !== '' ? $cityName . ' | ' : '') . $addressText, ' |')) . '</blockquote>';
+            $this->broadcast->confirmAndDispatch($chatId);
+            return;
+        }
+        if ($text === 'BROADCAST_EDIT') {
+            if (!$this->broadcast->isAdmin($chatId)) {
+                return;
             }
-
-            $pricePer = SubscriptionBillingService::PRICE_PER_ADDRESS;
-            $monthly = $count * $pricePer;
-            $daily = (int) ceil($monthly / 30);
-            $smsPerDay = 2;
-
-            $body = [];
-            $body[] = '📍شما در حال خرید اشتراک برای آدرس:';
-            if (!empty($addressLines)) {
-                $body[] = implode("\n", $addressLines);
+            $this->broadcast->edit($chatId);
+            return;
+        }
+        if ($text === 'BROADCAST_ABORT') {
+            if (!$this->broadcast->isAdmin($chatId)) {
+                return;
             }
-            $body[] = '📬 سرویس «هشدار پیامکی قطعی برق»';
-            $body[] = '👤 کاربر: ' . $chatId;
-            $body[] = '📍 آدرس‌های بدون اشتراک: ' . $count;
-            $body[] = '💵 هزینه ماهانه هر آدرس: ' . number_format($pricePer) . ' تومان';
-            $body[] = '🧮 جمع ماهانه قابل پرداخت: ' . number_format($monthly) . ' تومان';
-            $body[] = '📅 معادل روزانه: ' . number_format($daily) . ' تومان | ~' . $smsPerDay . ' پیامک';
-            $preview = implode("\n", $body);
-
-            $invoiceUrl = route('payments.invoice', ['chat_id' => $chatId]);
-            //$invoiceUrl = route('payments.invoice', ['chat_id' => $chatId]);
-            $buttons = [
-                [
-                    $this->telegram->buildInlineKeyboardButton('ادامه و ورود به پرداخت', $invoiceUrl, ''),
-                ],
-            ];
+            $this->broadcast->abort($chatId);
+            return;
+        }
+        if ($text === 'CANCEL_BROADCAST') {
+            if (!$this->broadcast->isAdmin($chatId)) {
+                return;
+            }
+            $this->broadcast->cancelActive($chatId);
+            return;
+        }
+        if ($text === 'SMS_TERMS_OK') {
+            $this->smsFlow->proceedAfterConsent($chatId);
+            return;
+        }
+        if ($text === 'SMS_NAME_ABORT') {
+            $this->telegram->answerCallbackQuery([
+                'callback_query_id' => $this->telegram->Callback_ID(),
+            ]);
+            $this->state->clear($chatId);
+            $this->menu->hideReplyKeyboard($chatId);
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
-                'text' => $preview . "\n\n" . 'جهت خرید اشتراک روی دکمه‌ی زیر کلیک کنید👇👇👇',
-                'reply_markup' => $this->telegram->buildInlineKeyBoard($buttons),
-                'parse_mode' => 'HTML',
+                'text' => '❌ نام گذاری آدرس لغو شد.' . "\n\n" . 'شما از فرایند خرید اشتراک خارج شدید.',
             ]);
+            $this->menu->sendMainMenu($chatId);
             return;
         }
         if ($text === 'HELP') {
@@ -411,6 +436,42 @@ class TelegramUpdateDispatcher
                 'text' => $message,
             ]);
         }
+        // Handle cancel from inline button at invoice stage
+        if ($text === 'SMS_CANCEL') {
+            $this->telegram->answerCallbackQuery([
+                'callback_query_id' => $this->telegram->Callback_ID(),
+            ]);
+            $this->smsFlow->cancelPurchase($chatId);
+            return;
+        }
+        // Removed legacy SMS_CONTINUE (no longer used)
+        if ($text === 'SMS_CONTINUE') {
+            $this->telegram->answerCallbackQuery([
+                'callback_query_id' => $this->telegram->Callback_ID(),
+            ]);
+            $user = $this->userAddress->findUserByChatId($chatId);
+            $uncovered = $user ? $this->billing->getUncoveredAddressIds($user) : [];
+            if (empty($uncovered)) {
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => 'فعلاً آدرسی برای خرید اشتراک وجود ندارد.',
+                ]);
+                return;
+            }
+            $addresses = $user?->addresses()->with('city')->whereIn('addresses.id', $uncovered)->get();
+            $needsNames = ($addresses ?? collect())->filter(function ($addr) {
+                return empty($addr->pivot->name ?? null);
+            });
+            if ($needsNames->count() > 0) {
+                $queue = $needsNames->pluck('id')->all();
+                $this->state->set($chatId, ['step' => 'sms_name_flow', 'queue' => $queue, 'pos' => 0, 'uncovered' => $uncovered]);
+                $this->smsFlow->promptNextSmsName($chatId);
+                return;
+            }
+
+            $this->smsFlow->sendConsent($chatId);
+        }
+        // Removed legacy RENAME_SMS_ flow
         if ($text === 'ADD_ADDR') {
             $this->telegram->answerCallbackQuery([
                 'callback_query_id' => $this->telegram->Callback_ID(),
@@ -616,35 +677,7 @@ class TelegramUpdateDispatcher
      */
     protected function buildAddressCardForUser(int|string $chatId, int $addressId): array
     {
-        $user = $this->userAddress->findUserByChatId($chatId);
-        if (!$user) {
-            return [null, null, null];
-        }
-
-        $address = $user->addresses()->with('city')->where('addresses.id', $addressId)->first();
-        if (!$address) {
-            return [null, null, null];
-        }
-
-        $alias = $address->pivot->name ?? null;
-        $cityName = $address->city ? '📍 ' . $address->city->name() : '';
-        $titleLine = $alias ? '📌 نام محل: ' . $alias . "\n" : '';
-        $active = (bool) ($address->pivot->is_active ?? true);
-        $status = $active ? '<blockquote>🔔 اعلان: روشن</blockquote>' : '<blockquote>🔕 اعلان: خاموش</blockquote>';
-        $text = $titleLine . $cityName . ' | ' . $address->address . "\n\n" . $status;
-
-        $buttons = [
-            [
-                $this->telegram->buildInlineKeyboardButton('حذف 🗑️', '', 'DEL_' . $address->id),
-                $this->telegram->buildInlineKeyboardButton('برچسب ✏️', '', 'RENAME_' . $address->id),
-            ],
-            [
-                $this->telegram->buildInlineKeyboardButton($active ? 'خاموش کردن اعلان 🔕' : 'روشن کردن اعلان 🔔', '', 'TOGGLE_' . $address->id),
-                $this->telegram->buildInlineKeyboardButton('اشتراک‌گذاری 🔗', '', 'SHARE_' . $address->id),
-            ],
-        ];
-
-        return [$text, $this->telegram->buildInlineKeyBoard($buttons), $active];
+        return $this->addressCard->buildForUser($chatId, $addressId);
     }
 
     protected function confirmAddressAdded(int|string $chatId, int $addressId): void
@@ -672,172 +705,55 @@ class TelegramUpdateDispatcher
 
         if ($address) {
             $this->userAddress->attachUserAddress($chatId, $addressId);
-            $this->notifyTodaysBlackouts($chatId, $addressId);
+            $this->blackouts->notifyTodays($chatId, $addressId);
         }
     }
 
     protected function notifyTodaysBlackouts(int|string $chatId, int $addressId): void
     {
-        $today = Carbon::today()->toDateString();
-        $blackouts = Blackout::query()
-            ->where('address_id', $addressId)
-            ->whereDate('outage_date', $today)
-            ->orderBy('outage_start_time')
-            ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
-
-        if ($blackouts->isEmpty()) {
-            return;
-        }
-
-        $v = new Verta($today);
-        $dateFa = $v->format('l j F');
-
-        $lines = [];
-        foreach ($blackouts as $index => $b) {
-            $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
-            $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
-            $num = $index + 1;
-            $lines[] = $num . '. ' . 'ساعت ' . $start . ' الی ' . $end;
-        }
-
-        $cityName = '';
-        $address = Address::with('city')->find($addressId);
-        if ($address && $address->city) {
-            $cityName = (string) $address->city->name();
-        }
-        $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . ($address->address ?? ''), ' |');
-
-        $sections = [];
-        foreach ($blackouts as $b) {
-            $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
-            $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
-            $sections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
-        }
-
-        $final = '📅 برنامه قطعی امروز (' . $dateFa . '):' . "\n\n"
-            . e($locationLine) . "\n\n"
-            . implode("\n\n", $sections);
-
-        // Always send as a NEW message to keep previous search results visible
-        $this->telegram->sendMessage([
-            'chat_id' => $chatId,
-            'text' => $final,
-            'parse_mode' => 'HTML',
-        ]);
+        $this->blackouts->notifyTodays($chatId, $addressId);
     }
 
     protected function notifyTodaysBlackoutsForAllAddresses(int|string $chatId): void
     {
-        $user = $this->userAddress->findUserByChatId($chatId);
-        $addresses = $user ? $user->addresses()->with('city')->get() : collect();
-
-        if ($addresses->isEmpty()) {
-            $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.' . "\n\n" . 'برای اضافه کردن آدرس، بر روی 👈  /add_new_address  👉 بزنید' . "\n\n" . 'یا بر روی دکمه پایین 📍افزودن آدرس جدید بزنید:' . "\n\n" . '👇👇👇',
-            ]);
-            return;
-        }
-
-        $today = Carbon::today()->toDateString();
-        $vToday = new Verta($today);
-        $dateFa = $vToday->format('l j F');
-        $sections = [];
-        foreach ($addresses as $address) {
-            $blackouts = Blackout::query()
-                ->where('address_id', $address->id)
-                ->whereDate('outage_date', $today)
-                ->orderBy('outage_start_time')
-                ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
-
-            $cityName = $address->city ? $address->city->name() : '';
-            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
-
-            $addressSections = [];
-            if ($blackouts->isEmpty()) {
-                $addressSections[] = '<blockquote>' . e('✅ امروز برای این آدرس قطعی ثبت نشده است.') . '</blockquote>';
-            } else {
-                foreach ($blackouts as $b) {
-                    $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
-                    $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
-                    $addressSections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
-                }
-            }
-
-            $section = e($locationLine) . "\n\n" . implode("\n\n", $addressSections);
-
-            if (!empty($sections)) {
-                $sections[] = '🔹🔻🔻🔻🔻🔹';
-            }
-
-            $sections[] = $section;
-        }
-
-        $header = '📅 برنامه قطعی امروز (' . $dateFa . '):';
-        $final = $header . "\n\n" . implode("\n\n", $sections);
-
-        $this->telegram->sendMessage([
-            'chat_id' => $chatId,
-            'text' => $final,
-            'parse_mode' => 'HTML',
-        ]);
+        $this->blackouts->notifyTodayForAllAddresses($chatId);
     }
 
     protected function notifyTomorrowBlackoutsForAllAddresses(int|string $chatId): void
     {
-        $user = $this->userAddress->findUserByChatId($chatId);
-        $addresses = $user ? $user->addresses()->with('city')->get() : collect();
+        $this->blackouts->notifyTomorrowForAllAddresses($chatId);
+    }
 
-        if ($addresses->isEmpty()) {
-            $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => '📭 هنوز آدرسی اضافه نکرده‌اید.' . "\n\n" . 'برای اضافه کردن آدرس، بر روی دکمه 📍افزودن آدرس جدید بزنید:' . "\n\n" . '👇👇👇' . "\n\n" . '/add_new_address',
-            ]);
-            return;
-        }
+    protected function sendSmsInvoicePreview(int|string $chatId, $user, array $uncovered): void
+    {
+        $this->smsFlow->sendInvoicePreview($chatId, $user, $uncovered);
+    }
+    
+    /**
+     * Render broadcast progress report message.
+     *
+     * @param array{total:int,processing:int,processed:int,success:int,failed:int,remaining:int} $stats
+     */
+    protected function renderBroadcastReport(array $stats): string
+    {
+        $total = (int) ($stats['total'] ?? 0);
+        $processing = (int) ($stats['processing'] ?? 0);
+        $processed = (int) ($stats['processed'] ?? 0);
+        $success = (int) ($stats['success'] ?? 0);
+        $failed = (int) ($stats['failed'] ?? 0);
+        $remaining = (int) ($stats['remaining'] ?? max(0, $total - $processed));
 
-        $tomorrow = Carbon::tomorrow()->toDateString();
-        $vTomorrow = new Verta($tomorrow);
-        $dateFa = $vTomorrow->format('l j F');
-        $sections = [];
-        foreach ($addresses as $address) {
-            $blackouts = Blackout::query()
-                ->where('address_id', $address->id)
-                ->whereDate('outage_date', $tomorrow)
-                ->orderBy('outage_start_time')
-                ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
+        $lines = [];
+        $lines[] = '📣 گزارش ارسال همگانی';
+        $lines[] = '';
+        $lines[] = '👥 کل ارسال: ' . number_format($total) . ' کاربر';
+        $lines[] = '⏳ در حال ارسال: ' . number_format($processing) . ' کاربر';
+        $lines[] = '📤 ارسال شده: ' . number_format($processed);
+        $lines[] = '✅ موفق: ' . number_format($success);
+        $lines[] = '❌ ناموفق: ' . number_format($failed);
+        $lines[] = '🧮 باقی‌مانده: ' . number_format($remaining);
 
-            $cityName = $address->city ? $address->city->name() : '';
-            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
-
-            $addressSections = [];
-            if ($blackouts->isEmpty()) {
-                $addressSections[] = '<blockquote>' . e('✅ برای فردا قطعی ثبت نشده است.') . '</blockquote>';
-            } else {
-                foreach ($blackouts as $b) {
-                    $start = $b->outage_start_time ? Carbon::parse($b->outage_start_time)->format('H:i') : '—';
-                    $end = $b->outage_end_time ? Carbon::parse($b->outage_end_time)->format('H:i') : '—';
-                    $addressSections[] = '<blockquote>' . e('⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end) . '</blockquote>';
-                }
-            }
-
-            $section = e($locationLine) . "\n\n" . implode("\n\n", $addressSections);
-
-            if (!empty($sections)) {
-                $sections[] = '🔹🔻🔻🔻🔻🔹';
-            }
-
-            $sections[] = $section;
-        }
-
-        $header = '📅 برنامه قطعی فردا (' . $dateFa . '):';
-        $final = $header . "\n\n" . implode("\n\n", $sections);
-
-        $this->telegram->sendMessage([
-            'chat_id' => $chatId,
-            'text' => $final,
-            'parse_mode' => 'HTML',
-        ]);
+        return implode("\n", $lines);
     }
 }
 

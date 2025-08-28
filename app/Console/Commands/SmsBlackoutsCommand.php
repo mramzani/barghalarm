@@ -47,7 +47,8 @@ class SmsBlackoutsCommand extends Command
 
             $start = $blackout->outage_start_time ? Carbon::parse($blackout->outage_start_time)->format('H:i') : '';
             $cityName = optional($address->city)->name() ?? '';
-            $locationLine = trim(($cityName !== '' ? $cityName . ' | ' : '') . (string) $address->address, ' |');
+            $label = (string) ($address->alias_address ?? $address->address ?? '');
+            $locationLine = trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 
             // Users with active subscription covering this address and valid mobile
             $users = User::query()
@@ -65,19 +66,29 @@ class SmsBlackoutsCommand extends Command
             foreach ($users as $user) {
                 $smsDedupe = 'daily_sms_notified:' . $date . ':' . $blackout->id . ':' . $user->id;
                 if (Cache::add($smsDedupe, true, now()->addHours(24))) {
-                    $args = [
-                        $locationLine,
-                        (string) $start,
-                    ];
+                    // Use user's aliased address name from pivot instead of full address text
                     if ($this->option('dry-run')) {
                         Log::info('DRY RUN SMS', [
                             'user_id' => $user->id,
-                            'args' => $args,
+                            'args' => [],
                             'date' => $date,
                         ]);
                     } else {
                         $fullUser = User::find($user->id);
                         if ($fullUser) {
+                            $pivot = $fullUser
+                                ->addresses()
+                                ->where('addresses.id', $address->id)
+                                ->first();
+                            $alias = $pivot?->pivot?->name;
+                            // Fallback to city name if alias is missing (should rarely happen post-wizard)
+                            $label = $alias !== null && $alias !== '' ? (string) $alias : ($cityName !== '' ? (string) $cityName : 'آدرس');
+
+                            $args = [
+                                $label,
+                                (string) $start,
+                            ];
+
                             MorinogNotificationJob::dispatch($fullUser, $args)->onQueue('sms');
                             $dispatched++;
                         }

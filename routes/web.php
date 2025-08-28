@@ -128,12 +128,7 @@ Route::post('/telegram/bot', [TelegramController::class, 'handle']);
 Route::get('/info', [TelegramController::class, 'webhookInfo']);
 Route::get('/set', [TelegramController::class, 'setWebhook']);
 
-Route::get('/',function(){
-    return view('welcome');
-});
-
 // Payments
 Route::get('/payments/invoice', [PaymentController::class, 'invoice'])->name('payments.invoice');
 Route::post('/payments/invoice', [PaymentController::class, 'invoicePost'])->name('payments.invoice.post');
 Route::get('/payments/callback', [PaymentController::class, 'callback'])->name('payments.callback');
-

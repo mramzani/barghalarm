@@ -79,7 +79,8 @@ class RemindUpcomingBlackoutsCommand extends Command
             $dateFa = (new Verta($date))->format('l j F');
 
             $cityName = optional($address->city)->name() ?? '';
-            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $address->address, ' |');
+            $label = (string) ($address->address ?? '');
+            $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 
             $reminderLine = '⏰ یادآوری: حدود ' . $minutes . ' دقیقه دیگر (' . $start . ') در تاریخ ' . $dateFa . ' برق شما قطع می‌شود.';
             $windowLine = '⏰ ' . $dateFa . ' ساعت ' . $start . ' الی ' . $end;
@@ -106,7 +107,12 @@ class RemindUpcomingBlackoutsCommand extends Command
                         $userMessages[$user->id]['sections'][] = '🔹🔻🔻🔻🔻🔹';
                     }
 
-                    $userMessages[$user->id]['sections'][] = $section;
+                    // Personalize the address label per user (alias if exists, else fallback)
+                    $alias = optional($user->addresses()->where('addresses.id', $address->id)->first()?->pivot)->name;
+                    $personalized = $alias !== null && $alias !== ''
+                        ? str_replace(e($label), e($alias), $section)
+                        : $section;
+                    $userMessages[$user->id]['sections'][] = $personalized;
                     $notified++;
                 }
             }

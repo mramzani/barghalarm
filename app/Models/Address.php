@@ -39,7 +39,17 @@ class Address extends Model
 
     public function fullAddress(): string
     {
-        return $this->address . ' ' . $this->area->name . ' ' . $this->city->name;
+        return  $this->city->name . ' | ' . $this->address;
+    }
+
+    public function getAliasAddressAttribute(): string
+    {
+        $pivotName = $this->pivot->name ?? null;
+        if (is_string($pivotName) && trim($pivotName) !== '') {
+            return $pivotName;
+        }
+
+        return $this->fullAddress();
     }
 
 }

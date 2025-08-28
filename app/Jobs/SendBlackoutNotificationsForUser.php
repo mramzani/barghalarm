@@ -58,7 +58,8 @@ class SendBlackoutNotificationsForUser implements ShouldQueue
                 ->get(['outage_start_time', 'outage_end_time', 'outage_date']);
 
             $cityName = $address->city ? (string) $address->city->name() : '';
-            $locationLine = '📍 '.trim(($cityName !== '' ? $cityName.' | ' : '').(string) $address->address, ' |');
+            $label = (string) ($address->alias_address ?? $address->address ?? '');
+            $locationLine = '📍 '.trim(($cityName !== '' ? $cityName.' | ' : '').$label, ' |');
 
             $addressSections = [];
             if ($blackouts->isEmpty()) {

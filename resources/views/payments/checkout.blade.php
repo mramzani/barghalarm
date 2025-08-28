@@ -50,7 +50,7 @@
             </div>
 
             <button type="button" id="pay-btn" class="w-full rounded-lg bg-blue-600 text-white py-2.5 hover:bg-blue-700 transition disabled:opacity-50" @if($uncoveredCount===0) disabled @endif>
-                ادامه و ورود به درگاه پرداخت
+                ادامه و پرداخت  
             </button>
         </form>
 
