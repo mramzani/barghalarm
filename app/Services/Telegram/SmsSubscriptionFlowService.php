@@ -209,8 +209,6 @@ class SmsSubscriptionFlowService
         }
 
         $cityName = (string) ($address->city?->name ?? '');
-        $cityName = (string) ($address->city?->name ?? '');
-        $cityName = (string) ($address->city?->name ?? '');
         $pivotAlias = is_string($address->pivot->name ?? null) ? trim((string) $address->pivot->name) : '';
         $label = $pivotAlias !== '' ? $pivotAlias : (string) ($address->address ?? '');
         $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
@@ -251,7 +249,7 @@ class SmsSubscriptionFlowService
         $addresses = $user?->addresses()->with('city')->whereIn('addresses.id', $uncovered)->get();
         $addressLines = [];
         foreach ($addresses ?? [] as $addr) {
-            $cityName = $addr->city ? (string) $addr->city->name() : '';
+            $cityName = (string) ($addr->city?->name ?? '');
             $pivotAlias = is_string($addr->pivot->name ?? null) ? trim((string) $addr->pivot->name) : '';
             $label = $pivotAlias !== '' ? $pivotAlias : (string) ($addr->address ?? '');
             $addressLines[] = '<blockquote>' . e(trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |')) . '</blockquote>';

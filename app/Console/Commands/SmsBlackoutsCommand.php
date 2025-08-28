@@ -46,7 +46,7 @@ class SmsBlackoutsCommand extends Command
             }
 
             $start = $blackout->outage_start_time ? Carbon::parse($blackout->outage_start_time)->format('H:i') : '';
-            $cityName = optional($address->city)->name() ?? '';
+            $cityName = (string) ($address->city?->name ?? '');
             $label = (string) ($address->alias_address ?? $address->address ?? '');
             $locationLine = trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 

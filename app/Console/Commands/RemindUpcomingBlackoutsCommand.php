@@ -78,7 +78,7 @@ class RemindUpcomingBlackoutsCommand extends Command
             $end = $blackout->outage_end_time ? Carbon::parse($blackout->outage_end_time)->format('H:i') : '—';
             $dateFa = (new Verta($date))->format('l j F');
 
-            $cityName = optional($address->city)->name() ?? '';
+            $cityName = (string) ($address->city?->name ?? '');
             $label = (string) ($address->address ?? '');
             $locationLine = '📍 ' . trim(($cityName !== '' ? $cityName . ' | ' : '') . $label, ' |');
 
