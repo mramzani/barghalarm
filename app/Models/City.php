@@ -24,9 +24,16 @@ class City extends Model
         return $this->hasMany(Address::class);
     }
 
-    public function name(): string
+    /**
+     * Accessor for the virtual "name" attribute.
+     *
+     * Returns the Persian name by default for display purposes.
+     */
+    protected function name(): Attribute
     {
-        return $this->name_fa;
+        return Attribute::get(function ($value, array $attributes): ?string {
+            return $attributes['name_fa'] ?? null;
+        });
     }
 
     public function blackouts(): HasMany
