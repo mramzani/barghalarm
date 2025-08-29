@@ -25,7 +25,7 @@ class MorinogNotificationJob implements ShouldQueue
      */
     public function handle(Notifications $notifications): void
     {
-        $pattern = "360796";
+        $pattern = "362008";
         $notifications->sendSms($this->user,$this->args,$pattern);
     }
 }
