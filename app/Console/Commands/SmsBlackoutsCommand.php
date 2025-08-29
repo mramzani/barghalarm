@@ -4,9 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\MorinogNotificationJob;
 use App\Models\Blackout;
-use App\Models\Subscription;
 use App\Models\User;
-use Hekmatinasser\Verta\Verta;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -56,6 +54,7 @@ class SmsBlackoutsCommand extends Command
                 ->whereNotNull('mobile')
                 ->whereHas('subscriptions', function ($q) use ($address, $date): void {
                     $q->where('status', 'active')
+                        ->whereDate('starts_on', '<=', $date)
                         ->whereDate('ends_on', '>=', $date)
                         ->whereHas('addresses', function ($qa) use ($address): void {
                             $qa->where('addresses.id', $address->id);
