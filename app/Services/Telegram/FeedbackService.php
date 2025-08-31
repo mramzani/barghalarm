@@ -18,6 +18,17 @@ class FeedbackService
 
     public function start(int|string $chatId): void
     {
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => "بخدا این ربات برای اداره برق نیست، اگه میخوای فهش بدی بیخیال شو 😁\n\nبرای ارسال پیشنهاد یا گزارش مشکل، لطفاً به آیدی زیر پیام بدهید:\n<a href='https://t.me/mohamadramzani1994'>@mohamadramzani1994</a>\n\nممنون از همراهی‌تون! 😊",
+                'parse_mode' => 'HTML',
+            ]);
+
+        $this->menu->sendMainMenu($chatId);
+    }
+
+    public function start2(int|string $chatId): void
+    {
         $this->state->set($chatId, ['step' => 'await_feedback']);
         $keyboard = [
             [
