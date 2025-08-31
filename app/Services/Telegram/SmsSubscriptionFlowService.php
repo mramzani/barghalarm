@@ -258,7 +258,7 @@ class SmsSubscriptionFlowService
         $pricePer = SubscriptionBillingService::PRICE_PER_ADDRESS;
         $monthly = $count * $pricePer;
         $daily = (int) ceil($monthly / 30);
-        $smsPerDay = 2;
+        $smsPerDay = 4;
 
         $body = [];
         $body[] = '📍شما در حال خرید اشتراک برای آدرس:';

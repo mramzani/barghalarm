@@ -159,7 +159,7 @@ class PaymentController extends Controller
         $lines[] = '*تعداد آدرس:* ' . number_format($addressCount);
         $lines[] = '*مبلغ پرداختی:* ' . number_format($amountToman) . ' تومان';
         $lines[] = '*بازه اشتراک:* ' . $startsFa . ' تا ' . $endsFa;
-        $lines[] = '_روزانه حدود 2 پیامک ارسال می‌شود._';
+        $lines[] = '_روزانه حدود 4 پیامک ارسال می‌شود._';
         return implode("\n", $lines);
     }
 
