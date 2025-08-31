@@ -87,7 +87,7 @@
                 </section>
             </main>
 
-            <section class="mt-16 sm:mt-24">
+            {{-- <section class="mt-16 sm:mt-24">
                 <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 flex items-center justify-center">
                     <a referrerpolicy='origin' target='_blank'
                         href='https://trustseal.enamad.ir/?id=406024&Code=7BHaWBkibIXgZ9jmJ5xyiXqnE5hcrDCm'><img
@@ -95,7 +95,7 @@
                             src='https://trustseal.enamad.ir/logo.aspx?id=406024&Code=7BHaWBkibIXgZ9jmJ5xyiXqnE5hcrDCm'
                             alt='' style='cursor:pointer' code='7BHaWBkibIXgZ9jmJ5xyiXqnE5hcrDCm'></a>
                 </div>
-            </section>
+            </section> --}}
 
             <footer class="mt-8 text-center text-slate-400 text-xs sm:text-sm flex flex-col gap-2">
                 <p>ساخته‌شده با ❤️ برای اطلاع‌رسانی بهتر به مردم مازندران</p>
