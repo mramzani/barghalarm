@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
  */
 class SubscriptionBillingService
 {
-    public const PRICE_PER_ADDRESS = 30000; // Toman per month
+    public const PRICE_PER_ADDRESS = 55000; // Toman per month
 
     public function calculateMonthlyCost(int $addressCount): int
     {
