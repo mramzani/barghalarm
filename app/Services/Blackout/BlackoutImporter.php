@@ -51,15 +51,20 @@ class BlackoutImporter
                 $addressId = $this->scraper->getAddressId($blackoutRow, $area);
                 if (!$addressId) {
                     $skipped++;
+                    Log::debug('Skip blackout row: missing address id', [
+                        'area_id' => $area->name,
+                        'city_id' => $area->city->name_fa,
+                        'row' => $blackoutRow,
+                    ]);
                     continue;
                 }
 
                 $dateJalali = array_key_exists(0, $blackoutRow) ? trim((string) $blackoutRow[0]) : null;
                 $startTime = array_key_exists(1, $blackoutRow) && trim((string) $blackoutRow[1]) !== ''
-                    ? Carbon::parse($blackoutRow[1])->format('H:i')
+                    ? Carbon::parse($blackoutRow[1])->format('H:i:s')
                     : null;
                 $endTime = array_key_exists(2, $blackoutRow) && trim((string) $blackoutRow[2]) !== ''
-                    ? Carbon::parse($blackoutRow[2])->format('H:i')
+                    ? Carbon::parse($blackoutRow[2])->format('H:i:s')
                     : null;
 
                 $gregorianDate = $this->convertJalaliToGregorian($dateJalali);
@@ -74,19 +79,19 @@ class BlackoutImporter
                     'outage_end_time' => $endTime,
                 ];
 
-                $existing = Blackout::where('outage_number', $outageNumber)->first();
-                if ($existing) {
-                    $existing->fill($values);
-                    if ($existing->isDirty()) {
-                        $existing->save();
-                        $updated++;
-                    } else {
-                        $skipped++;
-                    }
-                } else {
-                    $values['outage_number'] = $outageNumber;
-                    Blackout::create($values);
+                $values['outage_number'] = $outageNumber;
+
+                $model = Blackout::updateOrCreate(
+                    ['outage_number' => $outageNumber],
+                    $values
+                );
+
+                if ($model->wasRecentlyCreated) {
                     $created++;
+                } elseif ($model->wasChanged()) {
+                    $updated++;
+                } else {
+                    $skipped++;
                 }
             }
         }

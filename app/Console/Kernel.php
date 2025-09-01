@@ -12,10 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Run every 2 hours to refresh today's blackouts for all areas
-        // $schedule->command('blackouts:import')
-        //     ->everyTwoHours()
-        //     ->withoutOverlapping();
+        // Run every 4 hours to refresh today's blackouts for all areas
+    
     }
 
     /**
