@@ -56,6 +56,7 @@ class OutageScraper
 			$toName => $dateTo,
 		];
 
+
 		$crawler = $this->client->submit($form, $values);
 
 		return $this->parseResultsTable($crawler);
@@ -110,12 +111,71 @@ class OutageScraper
             return null;
         }
 
-        return Address::where('city_id', $area->city_id)
+        // 1) Exact match first
+        $exactId = Address::where('city_id', $area->city_id)
             ->where('address', $addressText)
             ->value('id');
-		
+        if ($exactId) {
+            return $exactId;
+        }
+
+        // 2) Normalized and partial match
+        $normalized = $this->normalizeAddress($addressText);
+        $normalizedId = Address::where('city_id', $area->city_id)
+            ->where(function ($q) use ($normalized) {
+                $q->where('address', $normalized)
+                  ->orWhere('address', 'like', '%'.$normalized.'%');
+            })
+            ->value('id');
+        if ($normalizedId) {
+            return $normalizedId;
+        }
+
+        // 3) Fallback: significant fragment
+        $fragment = $this->extractSearchableFragment($normalized);
+        if ($fragment !== null) {
+            return Address::where('city_id', $area->city_id)
+                ->where('address', 'like', '%'.$fragment.'%')
+                ->value('id');
+        }
+
+        return null;
 	}
 
+	/**
+	 * Normalize address text by unifying Arabic/Persian chars and collapsing whitespace/punctuation.
+	 */
+	private function normalizeAddress(string $text): string
+	{
+		$map = [
+			"\u{064A}" => "\u{06CC}", // ي -> ی
+			"\u{0643}" => "\u{06A9}", // ك -> ک
+			"\u{200C}" => ' ',        // ZWNJ -> space
+			"\u{00A0}" => ' ',        // NBSP -> space
+			'،' => ' ',
+			',' => ' ',
+			'؛' => ' ',
+			'ـ' => ' ',
+		];
+		$normalized = strtr($text, $map);
+		$normalized = trim(preg_replace('/\s+/u', ' ', $normalized) ?? '');
+		return $normalized;
+	}
+
+	/**
+	 * Extract the longest fragment likely to be contained in the canonical address.
+	 */
+	private function extractSearchableFragment(string $text): ?string
+	{
+		$parts = preg_split('/[\-\|\,\؛\،\(\)\[\]\:]/u', $text) ?: [];
+		$parts = array_values(array_filter(array_map(fn ($p) => trim($p), $parts), fn ($p) => $p !== ''));
+		if (empty($parts)) {
+			return null;
+		}
+		usort($parts, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a));
+		$best = $parts[0];
+		return mb_strlen($best) >= 8 ? $best : null;
+	}
 }
 
 

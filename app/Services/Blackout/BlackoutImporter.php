@@ -36,6 +36,7 @@ class BlackoutImporter
             })
             ->get();
 
+
         foreach ($areas as $area) {
             [$headers, $rows] = $this->scraper->searchOutages($dateFromJalali, $dateToJalali, (string) $area->code);
             // Remove header row if present as first row
@@ -52,8 +53,8 @@ class BlackoutImporter
                 if (!$addressId) {
                     $skipped++;
                     Log::debug('Skip blackout row: missing address id', [
-                        'area_id' => $area->name,
-                        'city_id' => $area->city->name_fa,
+                        'area' => $area->name,
+                        'city' => $area->city->name_fa,
                         'row' => $blackoutRow,
                     ]);
                     continue;
@@ -68,7 +69,7 @@ class BlackoutImporter
                     : null;
 
                 $gregorianDate = $this->convertJalaliToGregorian($dateJalali);
-                $outageNumber = $this->generateOutageNumber($area->id, (int) $area->city_id, $addressId, $gregorianDate, $startTime);
+                $outageNumber = $this->generateOutageNumber($area->id, (int) $area->city_id, $addressId, $gregorianDate, $startTime, $endTime);
 
                 $values = [
                     'area_id' => $area->id,
@@ -115,16 +116,18 @@ class BlackoutImporter
         return null;
     }
 
-    private function generateOutageNumber(int $areaId, int $cityId, int $addressId, ?string $outageDate, ?string $outageStartTime): int
+    private function generateOutageNumber(int $areaId, int $cityId, int $addressId, ?string $outageDate, ?string $outageStartTime, ?string $outageEndTime): int
     {
         $dateNormalized = $outageDate ? preg_replace('/[^0-9]/', '', $outageDate) : '0';
         $timeNormalized = $outageStartTime ? preg_replace('/[^0-9]/', '', $outageStartTime) : '0';
+        $timeEndNormalized = $outageEndTime ? preg_replace('/[^0-9]/', '', $outageEndTime) : '0';
         $key = implode('|', [
             $areaId,
             $cityId,
             $addressId,
             $dateNormalized,
             $timeNormalized,
+            $timeEndNormalized,
         ]);
 
         $hex = substr(sha1($key), 0, 15); // ~60 bits
