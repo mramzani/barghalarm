@@ -69,7 +69,27 @@ class BlackoutImporter
                     : null;
 
                 $gregorianDate = $this->convertJalaliToGregorian($dateJalali);
-                $outageNumber = $this->generateOutageNumber($area->id, (int) $area->city_id, $addressId, $gregorianDate, $startTime, $endTime);
+
+                // Prevent duplicate records for the same day and start time (per address)
+                $existing = Blackout::query()
+                    ->where('area_id', $area->id)
+                    ->where('city_id', $area->city_id)
+                    ->where('address_id', $addressId)
+                    ->where('outage_date', $gregorianDate)
+                    ->where('outage_start_time', $startTime)
+                    ->first();
+
+                if ($existing) {
+                    $outageNumber = (int) $existing->outage_number;
+                    // Merge end time by keeping the maximum (latest) time
+                    if (!empty($existing->outage_end_time)) {
+                        if (empty($endTime) || strcmp((string) $existing->outage_end_time, (string) $endTime) > 0) {
+                            $endTime = (string) $existing->outage_end_time;
+                        }
+                    }
+                } else {
+                    $outageNumber = $this->generateOutageNumber($area->id, (int) $area->city_id, $addressId, $gregorianDate, $startTime);
+                }
 
                 $values = [
                     'area_id' => $area->id,
@@ -116,18 +136,16 @@ class BlackoutImporter
         return null;
     }
 
-    private function generateOutageNumber(int $areaId, int $cityId, int $addressId, ?string $outageDate, ?string $outageStartTime, ?string $outageEndTime): int
+    private function generateOutageNumber(int $areaId, int $cityId, int $addressId, ?string $outageDate, ?string $outageStartTime): int
     {
         $dateNormalized = $outageDate ? preg_replace('/[^0-9]/', '', $outageDate) : '0';
         $timeNormalized = $outageStartTime ? preg_replace('/[^0-9]/', '', $outageStartTime) : '0';
-        $timeEndNormalized = $outageEndTime ? preg_replace('/[^0-9]/', '', $outageEndTime) : '0';
         $key = implode('|', [
             $areaId,
             $cityId,
             $addressId,
             $dateNormalized,
             $timeNormalized,
-            $timeEndNormalized,
         ]);
 
         $hex = substr(sha1($key), 0, 15); // ~60 bits
