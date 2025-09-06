@@ -27,11 +27,11 @@ use App\Http\Controllers\PaymentController;
 */
 
 
-Route::get('/import', function () {
-    $scraper = new OutageScraper();
-    [$headers, $rows] = $scraper->searchOutages('1404/06/10', '1404/06/10','2');
-    dd($headers, $rows);
-});
+// Route::get('/import', function () {
+//     $scraper = new OutageScraper();
+//     [$headers, $rows] = $scraper->searchOutages('1404/06/10', '1404/06/10','2');
+//     dd($headers, $rows);
+// });
 // Legacy route disabled in favor of scheduled command (blackouts:import)
 
 
@@ -40,8 +40,8 @@ Route::get('/',function(){
 });
 
 Route::post('/telegram/bot', [TelegramController::class, 'handle']);
-Route::get('/info', [TelegramController::class, 'webhookInfo']);
-Route::get('/set', [TelegramController::class, 'setWebhook']);
+//Route::get('/info', [TelegramController::class, 'webhookInfo']);
+//Route::get('/set', [TelegramController::class, 'setWebhook']);
 
 // Payments
 Route::get('/payments/invoice', [PaymentController::class, 'invoice'])->name('payments.invoice');
